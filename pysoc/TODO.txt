@@ -1,0 +1,17 @@
+- Utility theory
+- Social choice theory
+    - Merge in old SCT stuff
+    - Formal properties of SCFs (-> SAT?)
+    - Preference factor models (e.g. Thurstone)
+- Game theory
+    - 2-person zero-sum games
+    - Nash equilibria
+    - Decision theory
+    - Uncertainty
+- Population dynamics
+    - Merge in coursework stuff
+    - Pretty graphs
+    - Kin selection
+- Relationships
+    - SMP & Gale-Shapley
+    - Other relationship stuff
