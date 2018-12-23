@@ -214,6 +214,10 @@ class Ranking(PrefRelation):
         for i in range(self.levels):
             for elt in self.items[i]:
                 self.item_ranks[elt] = i
+    def is_strict(self):
+        return all(len(group) == 1 for group in self.items)
+    def to_strict(self):
+        return StrictRanking([group[0] for group in self.items])
     def rank(self, item):
         """Returns the 0-up rank of a given item."""
         return self.item_ranks[item]
@@ -248,7 +252,10 @@ class Ranking(PrefRelation):
         items = [lst for lst in items if (len(lst) > 0)]
         return Ranking(items)
     def get_ranking(self):
-        return self   
+        return self
+    def break_ties_randomly(self) -> 'StrictRanking':
+        """For each indifference class, breaks ties randomly, and returns a StrictRanking."""
+        return StrictRanking([x for xs in self.items for x in np.random.permutation(xs)])
     def __repr__(self):
         s = ""
         for i in range(self.levels):
@@ -287,6 +294,10 @@ class StrictRanking(Ranking):
         self.m = len(self.universe)  # number of alternatives
         self.items = items
         self.item_ranks = {item : i for (i, item) in enumerate(self.items)}
+    def is_strict(self):
+        return True
+    def to_strict(self):
+        return self
     def partition_by(self, item):
         """Returns list of four lists: [[elts strictly preferred to item], [elts indifferent with item], [elts strictly less preferred to item], [elts incomparable to item]]."""
         r = self.rank(item)
@@ -302,6 +313,8 @@ class StrictRanking(Ranking):
         """Given a subset of the candidates, reduces the StrictRanking to this subset."""
         items = [x for x in self.items if x in subset]
         return StrictRanking(items)
+    def break_ties_randomly(self) -> 'StrictRanking':
+        return self
     def __repr__(self):
         return ', '.join(str(x) for x in self)
     @classmethod
@@ -333,7 +346,7 @@ class CardinalRanking(Ranking):
         assert(isinstance(score_dict, dict))
         self.score_dict = score_dict
         items_and_scores = list(self.score_dict.items())
-        items_and_scores.sort(key = itemgetter(1), reverse = True)
+        items_and_scores.sort(key = operator.itemgetter(1), reverse = True)
         ranking = []
         for (i, (item, score)) in enumerate(items_and_scores):
             if ((i > 0) and (score == items_and_scores[i - 1][1])):
@@ -343,7 +356,7 @@ class CardinalRanking(Ranking):
             else:
                 ranking.append(item)
         super().__init__(ranking)
-        self.scores = list(map(itemgetter(1), items_and_scores))
+        self.scores = list(map(operator.itemgetter(1), items_and_scores))
         self.item_width = max([len(str(item)) for item in self.items])  # for display purposes
     def score(self, item):
         """Returns score of a given item."""
@@ -507,10 +520,11 @@ class Profile(object):
     def __repr__(self):
         s = ""
         for (name, rel) in zip(self.names, self.prefs):
-            if isinstance(rel, StrictRanking):
-                s += "{} : [{!r}]\n".format(name, rel)
-            elif isinstance(rel, Ranking):
-                s += "{} : [{}]\n".format(name, ', '.join(str(x) for x in str(rel).split('\n')[:-1]))
+            if isinstance(rel, Ranking):
+                if rel.is_strict():
+                    s += f'{name} : {rel.to_strict()!r}\n'
+                else:
+                    s += "{} : [{}]\n".format(name, ', '.join('[{}]'.format(', '.join(str(x) for x in group)) for group in rel.items))
             else:
                 s += "{} : <PrefRanking on \{{}\}\n".format(name, repr(rel.items)[1:-1])
         return s
