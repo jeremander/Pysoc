@@ -4,14 +4,12 @@
 import argparse
 import matplotlib.animation as animation
 import matplotlib.pyplot as plt
-import numpy as np
 import pandas as pd
 from PIL import Image
-import sys
 
-from pysoc.sct.prefs import Profile, Ranking
+from pysoc.sct.prefs import CardinalRanking, Profile
 from pysoc.sct.sct import SCF_COLLECTION, kemeny_young
-from pysoc.sct.smp import gale_shapley_weak
+from pysoc.sct.smp import gale_shapley_weak, make_compliant_suitee_profile
 
 
 def gs_animate(suitors, suitees, anim_list, img_path_dict = dict()):
@@ -66,11 +64,11 @@ def gs_animate(suitors, suitees, anim_list, img_path_dict = dict()):
             elif (flag == 'reject'):
                 i = get_line_index()
                 lines[i].set_color('red')
-                lines[i].set_linestyle('dashed')           
+                lines[i].set_linestyle('dashed')
             elif (flag == 'keep'):
                 i = get_line_index()
                 lines[i].set_color('green')
-                lines[i].set_linestyle('solid')   
+                lines[i].set_linestyle('solid')
             else:
                 raise ValueError("Invalid flag: '{}'".format(flag))
         return lines
@@ -79,23 +77,9 @@ def gs_animate(suitors, suitees, anim_list, img_path_dict = dict()):
 
 def read_data(filename):
     """Given a filename for a CSV indexed by names, with numeric columns for the rankings (semicolon-delimiting ties), and an optional 'Image' column containing paths to images, returns a Profile containing the weak preferences, and also a dictionary from names to image paths. If no numeric columns are provided, returns None instead of the Profiles."""
+    profile = Profile.from_csv(filename)
     df = pd.read_csv(filename, index_col = 0)
-    numeric_cols = sorted([col for col in df.columns if all(c.isdigit() for c in col)], key = lambda x : int(x))
     names = list(df.index)
-    # handle Profiles
-    if (len(numeric_cols) == 0):
-        profile = None
-    else:
-        weak_rankings = []
-        for (_, row) in df[numeric_cols].iterrows():
-            weak_ranking = []
-            for x in row:
-                if isinstance(x, str):
-                    tie = x.split(';')
-                    weak_ranking.append(tie)
-            weak_rankings.append(Ranking(weak_ranking))
-        assert all(ranking.universe == weak_rankings[0].universe for ranking in weak_rankings)
-        profile = Profile(weak_rankings, names = names)
     # handle image paths
     if ('Image' in df.columns):
         img_path_dict = dict((name, path) for (name, path) in zip(names, df['Image']) if isinstance(path, str))
@@ -107,32 +91,33 @@ def read_data(filename):
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('suitors', nargs = 1, help = 'path to suitor CSV', type = str)
-    parser.add_argument('suitees', nargs = 1, help = 'path to suitee CSV', default = None, type = str)
-    parser.add_argument('-o', '--outfile', help = 'mp4 output path', default = 'gale_shapley.mp4', type = str)
+    parser.add_argument('suitors', help = 'path to suitor CSV')
+    parser.add_argument('suitees', help = 'path to suitee CSV')
+    parser.add_argument('-o', '--outfile', help = 'mp4 output path', default = 'gale_shapley.mp4')
+    parser.add_argument('-v', '--verbose', action = 'store_true', help = 'verbosity flag')
     args = parser.parse_args()
 
     # Read data
+    print("Reading suitor data from {}...".format(args.suitors))
+    (suitor_prefs, suitor_img_path_dict) = read_data(args.suitors)
 
-    suitor_filename = args.suitors[0]
-    suitee_filename = args.suitees if (args.suitees is None) else args.suitees[0]
-
-    print("\nReading suitor data from {}...\n".format(suitor_filename))
-    (suitor_prefs, suitor_img_path_dict) = read_data(suitor_filename)
-
-    if (suitee_filename is None):
-        (suitee_prefs, suitee_img_path_dict) = (None, dict())
+    if (args.suitees is None):
+        suitee_prefs = make_compliant_suitee_profile(suitor_prefs)
+        suitee_img_path_dict = dict()
     else:
-        print("\nReading suitee data from {}...\n".format(suitee_filename))
-        (suitee_prefs, suitee_img_path_dict) = read_data(suitee_filename)
+        print("Reading suitee data from {}...".format(args.suitees))
+        (suitee_prefs, suitee_img_path_dict) = read_data(args.suitees)
 
     suitors = suitor_prefs.names
     num_suitors = len(suitors)
 
-    suitee_set = set(suitor_prefs[suitors[0]].universe)  # infer suitors from suitee prefs
-    if (suitee_prefs is None):  # indifferent preferences
+    suitee_set = suitor_prefs.universe
+    if (suitee_prefs is None):  # rank the suitors based on suitors' own preferences
         suitees = sorted(list(suitee_set))
-        suitee_prefs = Profile(Ranking([suitors] + [[]] * (len(suitors) - 1)), names = suitees)
+        suitee_rankings = []
+        for suitee in suitees:
+            suitee_rankings.append(CardinalRanking({suitor : -suitor_prefs[suitor].rank(suitee) for suitor in suitors}))
+        suitee_prefs = Profile(suitee_rankings, names = suitees)
     else:
         suitees = suitee_prefs.names
         if (set(suitees) != suitee_set):
@@ -156,9 +141,9 @@ if __name__ == '__main__':
 
     # TODO: broken for total indifference
     #print("Summary of voting for suitors with various social choice functions:")
-    #print(SCF_COLLECTION.report_all(suitee_prefs))    
+    #print(SCF_COLLECTION.report_all(suitee_prefs))
 
-    # Gale-Shapley 
+    # Gale-Shapley
 
     print("Suitor preferences:\n")
     print(suitor_prefs)
@@ -167,7 +152,7 @@ if __name__ == '__main__':
     print(suitee_prefs)
 
     print("Running Gale-Shapley...\n")
-    (graph, anim_list) = gale_shapley_weak(suitor_prefs, suitee_prefs)
+    (graph, anim_list) = gale_shapley_weak(suitor_prefs, suitee_prefs, verbose = args.verbose)
 
     img_path_dict = suitor_img_path_dict
     img_path_dict.update(suitee_img_path_dict)

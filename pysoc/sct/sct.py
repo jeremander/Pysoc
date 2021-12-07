@@ -1,14 +1,17 @@
 from collections import defaultdict
 import itertools
+from math import factorial
 import numpy as np
+from tqdm import tqdm
+from typing import List
 
-from pysoc.sct.prefs import PrefRelation, Profile, Ranking, StrictRanking
+from pysoc.sct.prefs import CardinalRanking, PrefRelation, Profile, Ranking, StrictRanking
 
 # Social Welfare Functions
 # (AKA preference aggregation)
 # Take Profiles as input, return (set of) PrefRelations as output.
 
-def pairwise_majority_vote(profile):
+def pairwise_majority_vote(profile: Profile) -> PrefRelation:
     """Determines for each pair (x, y) whether x >= y in the output relation based on the criterion N(x >= y) >= N(y >= x), where N(x >= y) is the number of members weakly preferring x to y."""
     pref_matrix = np.zeros((profile.m, profile.m), dtype = bool)
     for i in range(profile.m):
@@ -16,7 +19,7 @@ def pairwise_majority_vote(profile):
             pref_matrix[i][j] = (i == j) or (profile.number_preferring(profile.universe_list[i], profile.universe_list[j], False) >= profile.number_preferring(profile.universe_list[j], profile.universe_list[i], False))
     return PrefRelation(pref_matrix, profile.universe_list)
 
-def kemeny_young(profile):
+def kemeny_young(profile: Profile) -> List[Ranking]:
     """Create matrix of tallies (number strongly preferring x to y). Then score each ranking by adding up pairwise tallies."""
     # First create m x m matrix of total number strongly preferring i to j
     tallies = np.zeros((profile.m, profile.m))
@@ -27,7 +30,7 @@ def kemeny_young(profile):
     # Now assign scores to each permutation
     best_perms = []
     best_score = -1
-    perms = itertools.permutations(range(profile.m))
+    perms = tqdm(itertools.permutations(range(profile.m)), total = factorial(profile.m))
     for perm in perms:
         score = 0
         for ii in range(profile.m):
@@ -41,6 +44,38 @@ def kemeny_young(profile):
             best_perms.append(perm)
     best_rankings = [Ranking([profile.universe_list[i] for i in perm]) for perm in best_perms]
     return best_rankings
+
+def borda_count_ranking(profile: Profile) -> Ranking:
+    """In strict linear ordering, each person contributes a score of (m - k - 1) to the item ranked k (0-up). E.g. if 3 items, gives 2 to first-ranked, 1 to second-ranked, 0 to last-ranked item. Here we modify the rule to allow for indifferent preferences. Order the indifferent ones arbitrarily, but instead of assigning the usual score to each of these, average the scores within the equivalence class."""
+    if (not profile.all_prefs_ranked()):
+        raise ValueError("All preferences must be complete preorders.")
+    borda_counts = dict.fromkeys(profile.universe_list, 0.0)
+    for i in range(profile.n):
+        if isinstance(profile.prefs[i], StrictRanking):  # convert to a weak ranking
+            prefs = [[x] for x in profile.prefs[i].items]
+        else:
+            prefs = profile.prefs[i].items
+        count = profile.m - 1
+        for equiv_class in prefs:
+            size = len(equiv_class)
+            class_score = count - (size - 1) / 2.0
+            for item in equiv_class:
+                borda_counts[item] += class_score
+            count -= size
+    return CardinalRanking(borda_counts)
+    # pairs = sorted(borda_counts.items(), key = itemgetter(1), reverse = True)
+    # ranking = []
+    # equiv_class = []
+    # for (item, ct) in pairs:
+    #     if (not equiv_class):
+    #         equiv_class.append((item, ct))
+    #     elif (ct < equiv_class[-1][0]):
+    #         ranking.append(equiv_class)
+    #         equiv_class = [(item, ct)]
+    # if equiv_class:
+    #     ranking.append(equiv_class)
+    # return Ranking(ranking)
+
 
 # Social Choice Functions
 # Take Profiles as input, return set of winners as output.
@@ -76,18 +111,18 @@ def scf(f):
                 return []
             if (profile.m == 1):
                 return [profile.universe_list[0]]
-            return f(profile, *args, **kwargs)   
+            return f(profile, *args, **kwargs)
         def __repr__(self):
             return f.__name__
     wrapped = WrappedSCF()
     SCF_COLLECTION.scfs.append(wrapped)
-    return wrapped 
+    return wrapped
 
-@scf 
+@scf
 def weak_condorcet_winners(profile):
     return profile.condorcet_winners(strong = False)
 
-@scf 
+@scf
 def strong_condorcet_winners(profile):
     return profile.condorcet_winners(strong = True)
 

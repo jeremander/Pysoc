@@ -1,4 +1,4 @@
-import math
+from itertools import groupby
 import numpy as np
 import operator
 import pandas as pd
@@ -200,6 +200,7 @@ class Ranking(PrefRelation):
         """Constructor with list of ranked items. If a list of items appears in the list instead of a single item, this indicates indifference between the items in the sublist."""
         self.universe = flatten(items)
         if (len(set(self.universe)) != len(self.universe)):
+            breakpoint()
             raise ValueError("Members of ranked item list must be unique.")
         self.universe = set(self.universe)
         self.m = len(self.universe)  # number of alternatives
@@ -231,7 +232,7 @@ class Ranking(PrefRelation):
         """Returns new Ranking object such that the ordering is reversed."""
         items = list(self.items)
         items.reverse()
-        return self.__class__(items)   
+        return self.__class__(items)
     def partition_by(self, item):
         """Returns list of four lists: [[elts strictly preferred to item], [elts indifferent with item], [elts strictly less preferred to item], [elts incomparable to item]]."""
         r = self.rank(item)
@@ -347,17 +348,16 @@ class CardinalRanking(Ranking):
         self.score_dict = score_dict
         items_and_scores = list(self.score_dict.items())
         items_and_scores.sort(key = operator.itemgetter(1), reverse = True)
+        self.scores = []
         ranking = []
-        for (i, (item, score)) in enumerate(items_and_scores):
-            if ((i > 0) and (score == items_and_scores[i - 1][1])):
-                if (not isinstance(ranking[-1], list)):
-                    ranking[-1] = [ranking[-1]]
-                ranking[-1].append(item)
-            else:
-                ranking.append(item)
+        for (score, group) in groupby(items_and_scores, operator.itemgetter(1)):
+            self.scores.append(score)
+            ranking.append([pair[0] for pair in group])
         super().__init__(ranking)
-        self.scores = list(map(operator.itemgetter(1), items_and_scores))
-        self.item_width = max([len(str(item)) for item in self.items])  # for display purposes
+        try:
+            self.item_width = max([len(str(item)) for item in self.items])  # for display purposes
+        except ValueError:
+            breakpoint()
     def score(self, item):
         """Returns score of a given item."""
         return self.score_dict[item]
@@ -371,10 +371,10 @@ class CardinalRanking(Ranking):
         plt.xlim((-xlim, xlim))
         plt.show()
     def __repr__(self):
-        s = ""
-        for i in range(self.m):
-            score = self.score_dict[self[i]]
-            s += "%s:  %s%.8f\n" % (str.rjust(str(self[i]), self.item_width), ' ' if (score >= 0.0) else '', score)
+        s = ''
+        for (score, group) in zip(self.scores, self.items):
+            group_str = '[{}]'.format(', '.join(str(x) for x in group))
+            s += f'{score}: {group_str}\n'
         return s
     def __add__(self, other):
         """Add scores with another CardinalRanking object (or a constant) to obtain new ranking."""
@@ -454,7 +454,6 @@ class Profile(object):
             self.names = range(self.n)
         else:
             assert (len(names) == self.n), "Mismatch between number of PrefRelations and number of names."
-            assert all(isinstance(name, str) for name in names), "Names must be strings."
             self.names = names[:self.n]
         self.indices_by_name = {name : i for (i, name) in enumerate(self.names)}
     def reduce_to_subset(self, subset):
@@ -531,7 +530,43 @@ class Profile(object):
     def __iter__(self):
         return iter(self.prefs)
     def __getitem__(self, name):
+        # try:
+        #     name = int(name)
+        # except ValueError:
+        #     name = name
         return self.prefs[self.indices_by_name[name]]
+            # return self.prefs[self.indices_by_name[name]]
+        # except KeyError:
+            # breakpoint()
+    def to_csv(self, filename):
+        num_items = len(self.universe)
+        with open(filename, 'w') as f:
+            f.write(','.join([''] + [str(i) for i in range(num_items)]) + '\n')
+            for (name, ranking) in zip(self.names, self.prefs):
+                f.write(str(name))
+                for (i, group) in enumerate(ranking):
+                    f.write(',' + ';'.join(group))
+                for _ in range(i + 1, num_items):
+                    f.write(',')
+                f.write('\n')
+    @classmethod
+    def from_csv(cls, filename):
+        df = pd.read_csv(filename, index_col = 0, dtype = str).fillna('')
+        numeric_cols = sorted([col for col in df.columns if all(c.isdigit() for c in col)], key = int)
+        rankings = []
+        for tup in df[numeric_cols].itertuples():
+            ranking = []
+            for col in tup[1:]:
+                if (len(col) == 0):
+                    break
+                else:
+                    ranking.append(col.split(';'))
+            rankings.append(Ranking(ranking))
+        for ranking in rankings:
+            if ranking.universe != rankings[0].universe:
+                breakpoint()
+        assert all(ranking.universe == rankings[0].universe for ranking in rankings)
+        return cls(rankings, names = list(df.index))
     @classmethod
     def random(cls, items, n = None, names = None, indifference_prob = 0.0):
         """Generates random profile among some items (each member has ranked preferences, with given probability of indifference)."""
