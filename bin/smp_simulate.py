@@ -4,78 +4,16 @@
 import argparse
 import matplotlib.animation as animation
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
-from PIL import Image
 
 from pysoc.sct.prefs import CardinalRanking, Profile
-from pysoc.sct.sct import SCF_COLLECTION, kemeny_young
-from pysoc.sct.smp import gale_shapley_weak, make_compliant_suitee_profile
+from pysoc.sct.sct import SCF_COLLECTION
+from pysoc.sct.smp import GaleShapleyAnimator, gale_shapley_weak, make_compliant_suitee_profile, make_popular_suitee_profile
 
-
-def gs_animate(suitors, suitees, anim_list, img_path_dict = dict()):
-    """Animates the Gale-Shapley algorithm. Takes list of suitors, suitees, and animation actions returned by the gale_shapley function. img_path_dict is a dictionary from suitor/suitee names to image paths."""
-    nodes = suitors + suitees
-    num_suitors, num_suitees = len(suitors), len(suitees)
-    N = max(num_suitors, num_suitees)
-    height = N // 2
-    pos = {node : (i, height) if (i < num_suitors) else (i - num_suitors, 0) for (i, node) in enumerate(nodes)}
-    node_colors = {node : '#3BB9FF' if (i < num_suitors) else '#F778A1' for (i, node) in enumerate(nodes)}
-    (fig, ax) = plt.subplots()
-    lines = []
-    def init():
-        ax.set_xlim((-0.5, N - 0.5))
-        ax.set_ylim((-0.5, height + 0.5))
-        ax.axis('off')
-        fig.tight_layout()
-        #fig.set_size_inches(16, 8)
-        ax.set_aspect('equal')
-        return plot_nodes()
-    def plot_nodes():
-        artists = []
-        for (node, p) in pos.items():
-            if (node in img_path_dict):  # use image
-                img = Image.open(img_path_dict[node])
-                artists.append(ax.imshow(img, origin = 'upper', extent = [p[0] - 0.4, p[0] + 0.4, p[1] - 0.4, p[1] + 0.4]))
-            else:  # use the name
-                #artists.append(ax.scatter([p[0]], [p[1]], s = 1000, color = node_colors[node]))
-                circ = plt.Circle(p, 0.35, color = node_colors[node])
-                ax.add_artist(circ)
-                artists.append(circ)
-                artists.append(ax.text(*p, node, ha = 'center', va = 'center', fontweight = 'bold', fontsize = 12))
-        return artists
-    def update(frame):
-        print("frame = {}".format(frame))
-        if (frame > 0):
-            nonlocal lines
-            (flag, edge) = anim_list[frame - 1]
-            xdata, ydata = zip(pos[edge[0]], pos[edge[1]])
-            ydata = (0.9 * height, 0.1 * height)  # squash the lines a little
-            def get_line_index():
-                for (i, line) in enumerate(lines):
-                    if (tuple(line.get_xdata()) == xdata) and (tuple(line.get_ydata()) == ydata):
-                        return i
-            if (flag == 'add'):
-                lines += ax.plot(xdata, ydata, linewidth = 2, color = 'black', linestyle = 'dashed')
-            elif (flag == 'delete'):
-                i = get_line_index()
-                l = lines.pop(i)
-                l.remove()
-                del(l)
-            elif (flag == 'reject'):
-                i = get_line_index()
-                lines[i].set_color('red')
-                lines[i].set_linestyle('dashed')
-            elif (flag == 'keep'):
-                i = get_line_index()
-                lines[i].set_color('green')
-                lines[i].set_linestyle('solid')
-            else:
-                raise ValueError("Invalid flag: '{}'".format(flag))
-        return lines
-    anim = animation.FuncAnimation(fig, update, init_func = init, frames = len(anim_list) + 1, interval = 1000, blit = True)
-    return anim
 
 def read_data(filename):
+    # TODO: base path for default image paths
     """Given a filename for a CSV indexed by names, with numeric columns for the rankings (semicolon-delimiting ties), and an optional 'Image' column containing paths to images, returns a Profile containing the weak preferences, and also a dictionary from names to image paths. If no numeric columns are provided, returns None instead of the Profiles."""
     profile = Profile.from_csv(filename)
     df = pd.read_csv(filename, index_col = 0)
@@ -93,16 +31,30 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('suitors', help = 'path to suitor CSV')
     parser.add_argument('suitees', help = 'path to suitee CSV')
+    parser.add_argument('--rank-suitors', choices = ('compliant', 'popular'), default = 'popular', help = 'how to rank suitors based on brought gifts when the ranking is not provided')
+    parser.add_argument('-a', '--agg', help = 'rank aggregation method', choices = ('borda', 'kemeny-young'), default = 'borda')
     parser.add_argument('-o', '--outfile', help = 'mp4 output path', default = 'gale_shapley.mp4')
     parser.add_argument('-v', '--verbose', action = 'store_true', help = 'verbosity flag')
+    parser.add_argument('--figsize', type = int, nargs = 2, default = (12, 8), help = 'figure size in inches (width, height)')
+    parser.add_argument('--dpi', type = int, default = 400, help = 'image DPI')
+    parser.add_argument('--seed', type = int, help = 'random seed')
     args = parser.parse_args()
+    args.seed=123
+    if (args.seed is not None):
+        np.random.seed(args.seed)
 
     # Read data
     print("Reading suitor data from {}...".format(args.suitors))
     (suitor_prefs, suitor_img_path_dict) = read_data(args.suitors)
 
     if (args.suitees is None):
-        suitee_prefs = make_compliant_suitee_profile(suitor_prefs)
+        if (args.suitee_mode == 'compliant'):
+            suitee_profile = make_compliant_suitee_profile(suitor_prefs)
+        else:  # popular
+            df = pd.read_csv(args.suitors, index_col = 0, dtype = str).fillna('')
+            suitees = df['Brought']
+            suitees_by_suitor = dict(zip(df.index, suitees))
+            suitee_profile = make_popular_suitee_profile(suitor_prefs, suitees_by_suitor, agg = args.agg)
         suitee_img_path_dict = dict()
     else:
         print("Reading suitee data from {}...".format(args.suitees))
@@ -152,14 +104,23 @@ if __name__ == '__main__':
     print(suitee_prefs)
 
     print("Running Gale-Shapley...\n")
-    (graph, anim_list) = gale_shapley_weak(suitor_prefs, suitee_prefs, verbose = args.verbose)
+    (graph, anim_df) = gale_shapley_weak(suitor_prefs, suitee_prefs, verbose = args.verbose)
+    breakpoint()
 
     img_path_dict = suitor_img_path_dict
     img_path_dict.update(suitee_img_path_dict)
 
-    anim = gs_animate(suitors, suitees, anim_list, img_path_dict = img_path_dict)
+    animator = GaleShapleyAnimator(suitors, suitees, img_path_dict = img_path_dict, figsize = args.figsize)
+    animator.init_axis()
+    animator.plot_nodes()
+    node_path = 'tmp.png'
+    plt.savefig(node_path, dpi = args.dpi, transparent = True)
+    animation = animator.animate(anim_df)
 
     print("Saving movie to {}...\n".format(args.outfile))
-    anim.save(args.outfile, dpi = 400)
+    animator.
+    # anim.save(args.outfile, dpi = 400)
+    # animation.save(args.outfile, writer = 'ffmpeg', dpi = args.dpi, fps = 30, savefig_kwargs = {'dpi' : args.dpi})
+    animation.save(args.outfile, writer = 'ffmpeg', dpi = args.dpi, fps = 30)
 
     print("\nDONE!\n")

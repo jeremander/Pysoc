@@ -200,7 +200,6 @@ class Ranking(PrefRelation):
         """Constructor with list of ranked items. If a list of items appears in the list instead of a single item, this indicates indifference between the items in the sublist."""
         self.universe = flatten(items)
         if (len(set(self.universe)) != len(self.universe)):
-            breakpoint()
             raise ValueError("Members of ranked item list must be unique.")
         self.universe = set(self.universe)
         self.m = len(self.universe)  # number of alternatives
@@ -232,7 +231,7 @@ class Ranking(PrefRelation):
         """Returns new Ranking object such that the ordering is reversed."""
         items = list(self.items)
         items.reverse()
-        return self.__class__(items)
+        return Ranking(items)
     def partition_by(self, item):
         """Returns list of four lists: [[elts strictly preferred to item], [elts indifferent with item], [elts strictly less preferred to item], [elts incomparable to item]]."""
         r = self.rank(item)

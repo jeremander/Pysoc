@@ -95,6 +95,10 @@ class SCFCollection():
             s += '\n{!r}:\n'.format(scf)
             s += '\t[{}]\n'.format(', '.join(str(x) for x in sorted(scf(profile))))
         return s
+    def __iter__(self):
+        return iter(self.scfs)
+    def __len__(self):
+        return len(self.scfs)
     def __repr__(self):
         return "{}({!r})".format(self.__class__.__name__, self.scfs)
 
@@ -292,7 +296,3 @@ def minimax_margin(profile):
 @scf
 def minimax_pairwise_opp(profile):
     return minimax(profile, scoring_variant = 3)
-
-
-
-
