@@ -20,10 +20,10 @@ def read_data(filename):
     names = list(df.index)
     # handle image paths
     if ('Image' in df.columns):
-        img_path_dict = dict((name, path) for (name, path) in zip(names, df['Image']) if isinstance(path, str))
+        img_paths = dict((name, path) for (name, path) in zip(names, df['Image']) if isinstance(path, str))
     else:
-        img_path_dict = dict()
-    return (profile, img_path_dict)
+        img_paths = dict()
+    return (profile, img_paths)
 
 
 if __name__ == '__main__':
@@ -45,7 +45,7 @@ if __name__ == '__main__':
 
     # Read data
     print("Reading suitor data from {}...".format(args.suitors))
-    (suitor_prefs, suitor_img_path_dict) = read_data(args.suitors)
+    (suitor_prefs, suitor_images) = read_data(args.suitors)
 
     if (args.suitees is None):
         if (args.suitee_mode == 'compliant'):
@@ -55,10 +55,10 @@ if __name__ == '__main__':
             suitees = df['Brought']
             suitees_by_suitor = dict(zip(df.index, suitees))
             suitee_profile = make_popular_suitee_profile(suitor_prefs, suitees_by_suitor, agg = args.agg)
-        suitee_img_path_dict = dict()
+        suitee_images = dict()
     else:
         print("Reading suitee data from {}...".format(args.suitees))
-        (suitee_prefs, suitee_img_path_dict) = read_data(args.suitees)
+        (suitee_prefs, suitee_images) = read_data(args.suitees)
 
     suitors = suitor_prefs.names
     num_suitors = len(suitors)
@@ -105,12 +105,8 @@ if __name__ == '__main__':
 
     print("Running Gale-Shapley...\n")
     (graph, anim_df) = gale_shapley_weak(suitor_prefs, suitee_prefs, verbose = args.verbose)
-    breakpoint()
 
-    img_path_dict = suitor_img_path_dict
-    img_path_dict.update(suitee_img_path_dict)
-
-    animator = GaleShapleyAnimator(suitors, suitees, img_path_dict = img_path_dict, figsize = args.figsize)
+    animator = GaleShapleyAnimator(suitors, suitees, suitor_images = suitor_images, suitee_images = suitee_images, figsize = args.figsize)
     animator.init_axis()
     animator.plot_nodes()
     node_path = 'tmp.png'
@@ -118,7 +114,6 @@ if __name__ == '__main__':
     animation = animator.animate(anim_df)
 
     print("Saving movie to {}...\n".format(args.outfile))
-    animator.
     # anim.save(args.outfile, dpi = 400)
     # animation.save(args.outfile, writer = 'ffmpeg', dpi = args.dpi, fps = 30, savefig_kwargs = {'dpi' : args.dpi})
     animation.save(args.outfile, writer = 'ffmpeg', dpi = args.dpi, fps = 30)

@@ -157,16 +157,23 @@ def make_popular_suitee_profile(suitor_profile: Profile, suitees_by_suitor: Dict
         suitee_rankings.append(suitee_ranking)
     return Profile(suitee_rankings, names = suitees)
 
+def make_thumbnail(img: Image, width: int = 200) -> Image:
+    size = img.size
+    ratio = width / size[0]
+    return img.resize((int(size[0] * ratio), int(size[1] * ratio)), Image.ANTIALIAS)
+
 class GaleShapleyAnimator:
-    def __init__(self, suitors, suitees, img_path_dict = dict(), figsize = None):
+    def __init__(self, suitors, suitees, suitor_images = dict(), suitee_images = dict(), figsize = None, thumbnail_width: int = 200):
         self.suitors = suitors
         self.suitees = suitees
-        self.img_path_dict = img_path_dict
+        self.suitor_images = suitor_images
+        self.suitee_images = suitee_images
         self.figsize = figsize
+        self.thumbnail_width = thumbnail_width
         self.nodes = suitors + suitees
         num_suitors, num_suitees = len(suitors), len(suitees)
         self.N = max(num_suitors, num_suitees)
-        self.height = self.N // 2
+        self.height = max(1, self.N // 2)
         self.pos = {node : (i, self.height) if (i < num_suitors) else (i - num_suitors, 0) for (i, node) in enumerate(self.nodes)}
         self.node_colors = {node : '#3BB9FF' if (i < num_suitors) else '#F778A1' for (i, node) in enumerate(self.nodes)}
     def init_axis(self):
@@ -178,16 +185,23 @@ class GaleShapleyAnimator:
         self.ax.axis('off')
         self.ax.set_aspect('equal')
     def plot_nodes(self):
-        for (node, p) in self.pos.items():
-            if (node in self.img_path_dict):  # use image
-                img = Image.open(self.img_path_dict[node])
+        def gen_nodes():
+            for suitor in self.suitors:
+                yield (suitor, self.suitor_images.get(suitor))
+            for suitee in self.suitees:
+                yield (suitee, self.suitee_images.get(suitee))
+        for (node, img_file) in gen_nodes():
+            p = self.pos[node]
+            if img_file:  # use image
+                img = Image.open(img_file)
+                img = make_thumbnail(img, width = self.thumbnail_width)
                 self.ax.imshow(img, origin = 'upper', extent = [p[0] - 0.4, p[0] + 0.4, p[1] - 0.4, p[1] + 0.4])
             else:  # use the name
                 circ = plt.Circle(p, 0.35, color = self.node_colors[node])
                 self.ax.add_artist(circ)
                 self.ax.text(*p, node, ha = 'center', va = 'center', fontweight = 'bold', fontsize = 12)
     def animate(self, anim_df):
-        """Animates the Gale-Shapley algorithm. Takes list of suitors, suitees, and animation actions returned by the gale_shapley function. img_path_dict is a dictionary from suitor/suitee names to image paths."""
+        """Animates the Gale-Shapley algorithm. Takes list of suitors, suitees, and animation actions returned by the gale_shapley function."""
         anim_list = [(action, (suitor, suitee)) for (_, action, suitor, suitee) in anim_df.itertuples()]
         self.init_axis()
         lines = []
