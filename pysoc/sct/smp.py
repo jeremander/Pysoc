@@ -129,7 +129,7 @@ def gale_shapley_weak(suitor_prefs: Profile, suitee_prefs: Profile, verbose: boo
     action_df = pd.DataFrame(actions, columns = ['action', 'suitor', 'suitee'])
     return (graph, action_df)
 
-def make_compliant_suitee_profile(suitor_profile: Profile) -> Profile:
+def make_reciprocal_suitee_profile(suitor_profile: Profile) -> Profile:
     """Given a suitor Profile, creates a suitee Profile where they rank suitors by decreasing preference for themselves. This makes the suitees as compliant as possible with their earliest proposals in the Gale-Shapley algorithm."""
     suitors = suitor_profile.names
     suitees = sorted(list(suitor_profile.universe))

@@ -9,7 +9,7 @@ import pandas as pd
 
 from pysoc.sct.prefs import CardinalRanking, Profile
 from pysoc.sct.sct import SCF_COLLECTION
-from pysoc.sct.smp import GaleShapleyAnimator, gale_shapley_weak, make_compliant_suitee_profile, make_popular_suitee_profile
+from pysoc.sct.smp import GaleShapleyAnimator, gale_shapley_weak, make_reciprocal_suitee_profile, make_popular_suitee_profile
 
 
 def read_data(filename):
@@ -31,7 +31,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('suitors', help = 'path to suitor CSV')
     parser.add_argument('suitees', help = 'path to suitee CSV')
-    parser.add_argument('--rank-suitors', choices = ('compliant', 'popular'), default = 'popular', help = 'how to rank suitors based on brought gifts when the ranking is not provided')
+    parser.add_argument('--rank-suitors', choices = ('reciprocal', 'popular'), default = 'popular', help = 'how to rank suitors based on brought gifts when the ranking is not provided')
     parser.add_argument('-a', '--agg', help = 'rank aggregation method', choices = ('borda', 'kemeny-young'), default = 'borda')
     parser.add_argument('-o', '--outfile', help = 'mp4 output path', default = 'gale_shapley.mp4')
     parser.add_argument('-v', '--verbose', action = 'store_true', help = 'verbosity flag')
@@ -39,7 +39,7 @@ if __name__ == '__main__':
     parser.add_argument('--dpi', type = int, default = 400, help = 'image DPI')
     parser.add_argument('--seed', type = int, help = 'random seed')
     args = parser.parse_args()
-    args.seed=123
+
     if (args.seed is not None):
         np.random.seed(args.seed)
 
@@ -48,8 +48,8 @@ if __name__ == '__main__':
     (suitor_prefs, suitor_images) = read_data(args.suitors)
 
     if (args.suitees is None):
-        if (args.suitee_mode == 'compliant'):
-            suitee_profile = make_compliant_suitee_profile(suitor_prefs)
+        if (args.suitee_mode == 'reciprocal'):
+            suitee_profile = make_reciprocal_suitee_profile(suitor_prefs)
         else:  # popular
             df = pd.read_csv(args.suitors, index_col = 0, dtype = str).fillna('')
             suitees = df['Brought']
