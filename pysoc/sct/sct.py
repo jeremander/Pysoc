@@ -257,8 +257,10 @@ def copelands_rule(profile):
                 elif (profile.number_preferring(y, x, True) > profile.number_preferring(x, y, True)):
                     WL[x] -= 1
                     WL[y] += 1
-    max_WL = max(WL.values())
     winners = []
+    if (not WL):
+        return winners
+    max_WL = max(WL.values())
     for item in WL:
         if (WL[item] >= max_WL):
             winners.append(item)

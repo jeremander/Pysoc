@@ -1,3 +1,5 @@
+from collections import Counter
+import math
 import matplotlib
 import matplotlib.animation as animation
 import matplotlib.pyplot as plt
@@ -5,7 +7,7 @@ import networkx as nx
 import numpy as np
 import pandas as pd
 from PIL import Image
-from typing import Dict, Tuple
+from typing import Dict, NamedTuple, Tuple
 
 from pysoc.sct.prefs import CardinalRanking, Profile, StrictRanking
 from pysoc.sct.sct import borda_count_ranking, kemeny_young
@@ -128,6 +130,41 @@ def gale_shapley_weak(suitor_prefs: Profile, suitee_prefs: Profile, verbose: boo
                     print(f"{suitee} is still with {suitor}")
     action_df = pd.DataFrame(actions, columns = ['action', 'suitor', 'suitee'])
     return (graph, action_df)
+
+def num_weak_compositions(n: int, k: int) -> int:
+    return 1 if (n == k == 0) else math.comb(n + k - 1, n)
+
+def num_worse_signatures(n: int, signature: Tuple[int, ...]) -> int:
+    if (n == 0):
+        return 0
+    k = len(signature)
+    i0 = signature[0]
+    num_sub_signatures = sum(num_weak_compositions(n - i, k - 1) for i in range(i0))
+    return num_sub_signatures + num_worse_signatures(n - i0, signature[1:])
+
+class RankSignature(NamedTuple):
+    n: int  # number of raters
+    signature: Tuple[int, ...]  # number of instances of each rank
+    @property
+    def happiness_score(self) -> float:
+        """Computes percentile of the signature out of all possible signatures, resulting in a score from 0 to 100."""
+        num_sigs = num_weak_compositions(self.n, self.n)
+        num_worse_sigs = num_worse_signatures(self.n, self.signature)
+        return 0.0 if (num_worse_sigs == 0) else (100.0 * (num_worse_sigs / (num_sigs - 1)))
+
+def get_rank_signatures(suitor_profile: Profile, suitee_profile: Profile, graph: nx.Graph) -> Tuple[RankSignature, RankSignature]:
+    """Gets the rank signature for suitors and suitees, given a matching."""
+    suitor_counts, suitee_counts = Counter(), Counter()
+    num_suitors, num_suitees = len(suitor_profile), len(suitee_profile)
+    for (ranking, suitor) in zip(suitor_profile, suitor_profile.names):
+        suitee = next(iter(graph.neighbors(suitor)))
+        suitor_counts[ranking.rank(suitee)] += 1
+    suitor_sig = RankSignature(num_suitors, tuple(suitor_counts[i] for i in range(num_suitors)))
+    for (ranking, suitee) in zip(suitee_profile, suitee_profile.names):
+        suitor = next(iter(graph.neighbors(suitee)))
+        suitee_counts[ranking.rank(suitor)] += 1
+    suitee_sig = RankSignature(num_suitees, tuple(suitee_counts[i] for i in range(num_suitees)))
+    return (suitor_sig, suitee_sig)
 
 def make_reciprocal_suitee_profile(suitor_profile: Profile) -> Profile:
     """Given a suitor Profile, creates a suitee Profile where they rank suitors by decreasing preference for themselves. This makes the suitees as compliant as possible with their earliest proposals in the Gale-Shapley algorithm."""

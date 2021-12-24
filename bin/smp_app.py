@@ -1,5 +1,5 @@
-# TODO: scores, check properti
 import base64
+import networkx as nx
 import pandas as pd
 from pathlib import Path
 from st_aggrid import AgGrid
@@ -9,7 +9,7 @@ from typing import Any, BinaryIO, Dict, List, NamedTuple
 
 from pysoc.sct.prefs import Profile, Ranking
 from pysoc.sct.sct import SCF_COLLECTION
-from pysoc.sct.smp import GaleShapleyAnimator, gale_shapley_weak, make_reciprocal_suitee_profile, make_popular_suitee_profile
+from pysoc.sct.smp import GaleShapleyAnimator, gale_shapley_weak, get_rank_signatures, make_reciprocal_suitee_profile, make_popular_suitee_profile
 
 version = '0.1'
 ROW_HEIGHT = 28
@@ -70,7 +70,6 @@ def get_state(key: str, default: Any) -> Any:
     return getattr(st.session_state, key, default)
 
 def set_state(key: str, val: Any) -> None:
-    print((key, val))
     setattr(st.session_state, key, val)
 
 def initialize_state() -> None:
@@ -96,7 +95,8 @@ def parse_ranking(s: str) -> Ranking:
 def get_winners(profile: Profile) -> pd.DataFrame:
     scfs, winners = [], []
     for scf in SCF_COLLECTION:
-        scfs.append(str(scf))
+        scf_name = str(scf).replace('_', ' ').title()
+        scfs.append(scf_name)
         winners.append(', '.join(scf(profile)))
     return pd.DataFrame({'scheme' : scfs, 'winners' : winners})
 
@@ -139,10 +139,11 @@ class SMPData(NamedTuple):
     suitees: List[str]
     suitor_profile: Profile
     suitee_profile: Profile
-    matches: pd.DataFrame
     suitor_winners: pd.DataFrame
     suitee_winners: pd.DataFrame
+    matching_graph: nx.Graph
     anim_actions: pd.DataFrame
+    matches: pd.DataFrame
     @classmethod
     def from_form_data(cls, df: pd.DataFrame, options: SMPOptions) -> 'SMPData':
         suitors = list(df['Person'])
@@ -184,12 +185,19 @@ class SMPData(NamedTuple):
         suitee_winners = get_winners(suitor_profile)
         (graph, anim_actions) = gale_shapley_weak(suitor_profile, suitee_profile, random_tiebreak = True)
         matches = pd.DataFrame(graph.edges, columns = ['Person', 'Gift']).sort_values(by = 'Person', key = lambda s : [suitors.index(i) for i in s])
-        return SMPData(options, suitors, suitees, suitor_profile, suitee_profile, matches, suitor_winners, suitee_winners, anim_actions)
+        return SMPData(options, suitors, suitees, suitor_profile, suitee_profile, suitor_winners, suitee_winners, graph, anim_actions, matches)
     @property
     def num_suitors(self) -> int:
         return len(self.suitors)
+    def render_preferences(self) -> None:
+        (col1, col2) = st.columns((1, 1))
+        col1.markdown('__Gift Rankings__')
+        suitor_profile = Profile([ranking.to_ranking() for ranking in self.suitor_profile], names = self.suitor_profile.names)
+        col1.dataframe(suitor_profile.to_pandas())
+        col2.markdown('__Person Rankings__')
+        suitee_profile = Profile([ranking.to_ranking() for ranking in self.suitee_profile], names = self.suitee_profile.names)
+        col2.dataframe(suitee_profile.to_pandas())
     def render_rcv(self) -> None:
-        # st.subheader('Ranked Choice Voting')
         with st.expander('Ranked Choice Voting'):
             cols = st.columns((1, 1)) if self.options.rank_suitors else [st]
             cols[0].markdown('__Gifts:__')
@@ -200,6 +208,10 @@ class SMPData(NamedTuple):
     def render_matching(self) -> None:
         with st.expander('Matching Results'):
             st.dataframe(self.matches, height = table_height(self.num_suitors))
+            (suitor_sig, _) = get_rank_signatures(self.suitor_profile, self.suitee_profile, self.matching_graph)
+            st.write(f'Rank Signature: {suitor_sig.signature}')
+            happiness_score = round(suitor_sig.happiness_score)
+            st.write(f'Happiness Score: {happiness_score}%')
     def render_show_animation(self) -> None:
         def clicked_show_animation():
             set_state('form_submitted', True)
@@ -256,6 +268,7 @@ def main() -> None:
     if get_state('form_submitted', False):
         try:
             data = SMPData.from_form_data(table_data, options)
+            data.render_preferences()
             data.render_rcv()
             data.render_matching()
             data.render_animation()

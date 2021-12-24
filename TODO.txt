@@ -1,0 +1,4 @@
+- reciprocal prefs with suitor ranking as tiebreak
+- logo
+- check properties
+- deploy

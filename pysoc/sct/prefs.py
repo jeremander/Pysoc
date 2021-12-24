@@ -1,3 +1,4 @@
+from collections import defaultdict
 from itertools import groupby
 import numpy as np
 import operator
@@ -218,6 +219,8 @@ class Ranking(PrefRelation):
         return all(len(group) == 1 for group in self.items)
     def to_strict(self):
         return StrictRanking([group[0] for group in self.items])
+    def to_ranking(self):
+        return self
     def rank(self, item):
         """Returns the 0-up rank of a given item."""
         return self.item_ranks[item]
@@ -257,14 +260,7 @@ class Ranking(PrefRelation):
         """For each indifference class, breaks ties randomly, and returns a StrictRanking."""
         return StrictRanking([x for xs in self.items for x in np.random.permutation(xs)])
     def __repr__(self):
-        s = ""
-        for i in range(self.levels):
-            for j in range(len(self[i])):
-                s += "%s" % str(self[i][j])
-                if (j < len(self[i]) - 1):
-                    s += ", "
-            s += "\n"
-        return s
+        return ', '.join('; '.join(str(item) for item in lst) for lst in self.items)
     def __getitem__(self, index):
         return self.items[index]
     @classmethod
@@ -298,6 +294,8 @@ class StrictRanking(Ranking):
         return True
     def to_strict(self):
         return self
+    def to_ranking(self):
+        return Ranking(self.items)
     def partition_by(self, item):
         """Returns list of four lists: [[elts strictly preferred to item], [elts indifferent with item], [elts strictly less preferred to item], [elts incomparable to item]]."""
         r = self.rank(item)
@@ -369,6 +367,11 @@ class CardinalRanking(Ranking):
         xlim = 1.1 * max([abs(score) for score in self.scores])
         plt.xlim((-xlim, xlim))
         plt.show()
+    def to_ranking(self):
+        items_by_score = defaultdict(list)
+        for (item, score) in self.score_dict.items():
+            items_by_score[score].append(item)
+        return Ranking([items_by_score[score] for score in sorted(items_by_score)])
     def __repr__(self):
         s = ''
         for (score, group) in zip(self.scores, self.items):
@@ -529,14 +532,11 @@ class Profile(object):
     def __iter__(self):
         return iter(self.prefs)
     def __getitem__(self, name):
-        # try:
-        #     name = int(name)
-        # except ValueError:
-        #     name = name
         return self.prefs[self.indices_by_name[name]]
-            # return self.prefs[self.indices_by_name[name]]
-        # except KeyError:
-            # breakpoint()
+    def __len__(self):
+        return len(self.prefs)
+    def to_pandas(self):
+        return pd.Series([str(ranking) for ranking in self.prefs], index = self.names, name = 'Ranking')
     def to_csv(self, filename):
         num_items = len(self.universe)
         with open(filename, 'w') as f:
