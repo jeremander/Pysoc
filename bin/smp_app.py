@@ -26,24 +26,6 @@ RANKING_DESCRIPTIONS = {
 
 st.set_page_config(page_title = 'Gift Matching', page_icon = '🎁', layout = 'wide')
 
-# TEST_PATH = '/Users/jerm/Programming/festivus/2019-mugs/mug_suitors.csv'
-
-# def load_test_data():
-#     df = pd.read_csv(TEST_PATH, index_col = 0)
-#     numeric_cols = [col for col in df.columns if col.isdigit()]
-#     rankings = []
-#     for (_, s) in df.iterrows():
-#         ranking = []
-#         for col in numeric_cols:
-#             val = s.loc[col]
-#             if isinstance(val, str):
-#                 ranking.append(val)
-#         rankings.append(','.join(ranking))
-#     return pd.DataFrame({'Person' : df.index, 'Brought' : df.Brought, 'Ranked Gifts' : rankings})
-
-# TEST_DF = load_test_data()
-TEST_DF = pd.DataFrame({'Person' : ['Alice', 'Bob', 'Charlie'], 'Brought' : ['A', 'B', 'C'], 'Ranked Gifts' : ['B,A,C','A,B,C','C,B,A']})
-
 
 ####################
 # HELPER FUNCTIONS #
@@ -150,15 +132,6 @@ def gale_shapley_animator(suitors: List[str], suitees: List[str]) -> GaleShapley
     width = min(11, 0.75 * n)
     height = max(2, 0.55 * width)
     return GaleShapleyAnimator(suitors, suitees, suitor_images = suitor_images, suitee_images = suitee_images, figsize = (width, height), thumbnail_width = 100)
-
-# def animate_gale_shapley(suitors: List[str], suitees: List[str], anim_df: pd.DataFrame) -> FuncAnimation:
-#     suitor_images = get_images(suitors, getattr(st.session_state, 'person_pics', []))
-#     suitee_images = get_images(suitees, getattr(st.session_state, 'gift_pics', []))
-#     n = len(suitors)
-#     width = min(11, 0.75 * n)
-#     height = max(1, 0.55 * width)
-#     animator = GaleShapleyAnimator(suitors, suitees, suitor_images = suitor_images, suitee_images = suitee_images, figsize = (width, height), thumbnail_width = 100)
-#     return animator.animate(anim_df)
 
 class SMPOptions(NamedTuple):
     rank_suitors: str
@@ -289,7 +262,6 @@ class SMPData(NamedTuple):
         self.render_show_animation()
         self.render_download_animation()
 
-
 def main() -> None:
     render_title()
     with st.expander('Upload files (optional)'):
@@ -307,7 +279,6 @@ def main() -> None:
     else:
         n = int(st.number_input('How many people?', min_value = 1, value = 1, format = '%d'))
     rank_people = st.selectbox('Ranking criterion?', ['Reciprocal/popular', 'Popular', 'Reciprocal'])
-    rank_people_descr = RANKING_DESCRIPTIONS[rank_people]
     write_caption(RANKING_DESCRIPTIONS[rank_people])
     should_rank_people = rank_people != 'Reciprocal'
     table_data = render_ranking_form(n, should_rank_people, have_csv)

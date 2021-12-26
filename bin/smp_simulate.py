@@ -2,7 +2,6 @@
 """Creates an animation of the Gale-Shapley algorithm given preference data for suitors and suitees."""
 
 import argparse
-import matplotlib.animation as animation
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -85,15 +84,14 @@ if __name__ == '__main__':
     print(suitor_prefs)
 
     print("Summary of voting for suitees with various social choice functions:")
-    #print("Kemeny-Young: {}".format(kemeny_young(suitor_weak_prefs)))
+    # print("Kemeny-Young: {}".format(kemeny_young(suitor_weak_prefs)))
     print(SCF_COLLECTION.report_all(suitor_prefs))
 
     print("Suitee preferences (original):\n")
     print(suitee_prefs)
 
-    # TODO: broken for total indifference
-    #print("Summary of voting for suitors with various social choice functions:")
-    #print(SCF_COLLECTION.report_all(suitee_prefs))
+    print("Summary of voting for suitors with various social choice functions:")
+    print(SCF_COLLECTION.report_all(suitee_prefs))
 
     # Gale-Shapley
 
@@ -111,11 +109,11 @@ if __name__ == '__main__':
     animator.plot_nodes()
     node_path = 'tmp.png'
     plt.savefig(node_path, dpi = args.dpi, transparent = True)
-    animation = animator.animate(anim_df)
+    anim = animator.animate(anim_df)
 
     print("Saving movie to {}...\n".format(args.outfile))
     # anim.save(args.outfile, dpi = 400)
-    # animation.save(args.outfile, writer = 'ffmpeg', dpi = args.dpi, fps = 30, savefig_kwargs = {'dpi' : args.dpi})
-    animation.save(args.outfile, writer = 'ffmpeg', dpi = args.dpi, fps = 30)
+    # anim.save(args.outfile, writer = 'ffmpeg', dpi = args.dpi, fps = 30, savefig_kwargs = {'dpi' : args.dpi})
+    anim.save(args.outfile, writer = 'ffmpeg', dpi = args.dpi, fps = 30)
 
     print("\nDONE!\n")
