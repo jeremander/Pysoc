@@ -2,6 +2,7 @@ import base64
 import networkx as nx
 import pandas as pd
 from pathlib import Path
+import PIL.Image
 from st_aggrid import AgGrid
 import streamlit as st
 import tempfile
@@ -12,7 +13,16 @@ from pysoc.sct.sct import SCF_COLLECTION
 from pysoc.sct.smp import GaleShapleyAnimator, gale_shapley_weak, get_rank_signatures, make_reciprocal_suitee_profile, make_popular_suitee_profile
 
 version = '0.1'
+
 ROW_HEIGHT = 28
+SQUASH = 0.9
+THUMBNAIL_WIDTH = 100
+
+RANKING_DESCRIPTIONS = {
+    'Reciprocal/popular' : 'For each gift, rank people by strength of preference for that gift, then by gift popularity to break ties.',
+    'Popular' : 'Rank people by gift popularity.',
+    'Reciprocal' : 'For each gift, rank people by strength of preference for that gift.'
+}
 
 st.set_page_config(page_title = 'Gift Matching', page_icon = '🎁', layout = 'wide')
 
@@ -39,6 +49,9 @@ TEST_DF = pd.DataFrame({'Person' : ['Alice', 'Bob', 'Charlie'], 'Brought' : ['A'
 # HELPER FUNCTIONS #
 ####################
 
+def write_caption(s: str) -> None:
+    st.markdown(f'<span style="font-size: 10pt; color: gray;">{s}</span>', unsafe_allow_html = True)
+
 def normalize(s: str) -> str:
     return s.lower().replace('_', ' ')
 
@@ -64,6 +77,8 @@ def load_table_from_csv(path: str) -> pd.DataFrame:
     for col in ['Person', 'Ranked Gifts']:
         if (col not in cols):
             raise ValueError(f'CSV does not contain column {col!r}')
+    if ('Brought' in df.columns):
+        df['Brought'] = df['Brought'].fillna('')
     return df
 
 def get_state(key: str, default: Any) -> Any:
@@ -76,15 +91,31 @@ def initialize_state() -> None:
     set_state('form_submitted', False)
     # set_state('show_animation', False)
 
+def render_title() -> None:
+    col1, _, col2 = st.columns([6, 1, 8])
+    col1.title('Gift Matching Algorithm')
+    logo_path = Path(__file__).parents[1] / 'app_logo' / 'logo.jpg'
+    logo = PIL.Image.open(logo_path)
+    size = logo.size
+    height = 200
+    width = int((size[1] / size[0]) * height)
+    logo = logo.resize((height, width))
+    col2.image(logo)
+    # st.title('Gift Matching Algorithm')
+
 def submit_form() -> None:
     set_state('form_submitted', True)
     set_state('show_animation', False)
     set_state('show_animation_link', False)
 
-def render_ranking_form(n: int, rank_people: bool, have_csv: bool) -> pd.DataFrame:
+def render_ranking_form(n: int, should_rank_people: bool, have_csv: bool) -> pd.DataFrame:
     st.write('Enter user preference rankings.')
     with st.form('rankings form'):
-        df_template = st.session_state.table_data if have_csv else initialize_table(n, rank = rank_people)
+        ranking_help = 'Provide each person\'s full ranking of gifts from favorite to least favorite, separated by commas (for gifts whose rankings are tied, you may separate by semicolons.'
+        if should_rank_people:
+            ranking_help += '<br>Additionally, please provide the gift brought by each person.'
+        write_caption(ranking_help)
+        df_template = st.session_state.table_data if have_csv else initialize_table(n, rank = should_rank_people)
         response = AgGrid(df_template, height = table_height(n), editable = True, fit_columns_on_grid_load = True)
         st.form_submit_button(on_click = submit_form)
     return response['data']
@@ -117,7 +148,7 @@ def gale_shapley_animator(suitors: List[str], suitees: List[str]) -> GaleShapley
     suitee_images = get_images(suitees, get_state('gift_pics', []))
     n = len(suitors)
     width = min(11, 0.75 * n)
-    height = max(1, 0.55 * width)
+    height = max(2, 0.55 * width)
     return GaleShapleyAnimator(suitors, suitees, suitor_images = suitor_images, suitee_images = suitee_images, figsize = (width, height), thumbnail_width = 100)
 
 # def animate_gale_shapley(suitors: List[str], suitees: List[str], anim_df: pd.DataFrame) -> FuncAnimation:
@@ -130,8 +161,23 @@ def gale_shapley_animator(suitors: List[str], suitees: List[str]) -> GaleShapley
 #     return animator.animate(anim_df)
 
 class SMPOptions(NamedTuple):
-    rank_suitors: bool
+    rank_suitors: str
     agg: str = 'borda'
+    def rank_popularity(self) -> bool:
+        return (self.rank_suitors != 'Reciprocal')
+    def get_suitee_profile(self, suitor_profile: Profile, brought: List[str]) -> Profile:
+        if (self.rank_suitors == 'Popular'):
+            suitees_by_suitor = {}
+            for (suitor, suitee) in zip(suitor_profile.names, brought):
+                suitees_by_suitor[suitor] = suitee
+            return make_popular_suitee_profile(suitor_profile, suitees_by_suitor, agg = self.agg)
+        elif (self.rank_suitors == 'Reciprocal'):
+            return make_reciprocal_suitee_profile(suitor_profile)
+        else:  # reciprocal/popular
+            reciprocal = SMPOptions('Reciprocal', self.agg).get_suitee_profile(suitor_profile, brought)
+            popular = SMPOptions('Popular', self.agg).get_suitee_profile(suitor_profile, brought)
+            rankings = [ranking1.refine(ranking2) for (ranking1, ranking2) in zip(reciprocal, popular)]
+            return Profile(rankings, names = reciprocal.names)
 
 class SMPData(NamedTuple):
     options: SMPOptions
@@ -167,20 +213,16 @@ class SMPData(NamedTuple):
                 raise ValueError(f'Ranked gifts for {suitor} inconsistent with prior rows.')
         suitees = sorted(ranking.universe)
         suitor_profile = Profile(rankings, names = suitors)
-        if options.rank_suitors:
-            brought = set(suitees)
-            for suitee in ranking.universe:
+        brought = []
+        if options.rank_popularity():  # validate list of brought items
+            brought = list(df['Brought'])
+            for suitee in suitees:
                 if (suitee not in brought):
                     raise ValueError(f'Must indicate which person brought {suitee!r}')
-            suitees_by_suitor = {}
             for (suitor, suitee) in zip(df['Person'], df['Brought']):
                 if (suitee not in suitees):
                     raise ValueError(f'Invalid brought item for {suitor}: {suitee!r}')
-                suitees_by_suitor[suitor] = suitee
-            # TODO: set rank agg algorithm
-            suitee_profile = make_popular_suitee_profile(suitor_profile, suitees_by_suitor, agg = options.agg)
-        else:
-            suitee_profile = make_reciprocal_suitee_profile(suitor_profile)
+        suitee_profile = options.get_suitee_profile(suitor_profile, brought)
         suitor_winners = get_winners(suitee_profile)
         suitee_winners = get_winners(suitor_profile)
         (graph, anim_actions) = gale_shapley_weak(suitor_profile, suitee_profile, random_tiebreak = True)
@@ -192,17 +234,19 @@ class SMPData(NamedTuple):
     def render_preferences(self) -> None:
         (col1, col2) = st.columns((1, 1))
         col1.markdown('__Gift Rankings__')
-        suitor_profile = Profile([ranking.to_ranking() for ranking in self.suitor_profile], names = self.suitor_profile.names)
-        col1.dataframe(suitor_profile.to_pandas())
+        suitor_profile = Profile([ranking.get_ranking() for ranking in self.suitor_profile], names = self.suitor_profile.names)
+        suitor_df = suitor_profile.to_pandas()
+        col1.dataframe(suitor_df, height = table_height(len(suitor_df)))
         col2.markdown('__Person Rankings__')
-        suitee_profile = Profile([ranking.to_ranking() for ranking in self.suitee_profile], names = self.suitee_profile.names)
-        col2.dataframe(suitee_profile.to_pandas())
+        suitee_profile = Profile([ranking.get_ranking() for ranking in self.suitee_profile], names = self.suitee_profile.names)
+        suitee_df = suitee_profile.to_pandas()
+        col2.dataframe(suitee_df, height = table_height(len(suitee_df)))
     def render_rcv(self) -> None:
         with st.expander('Ranked Choice Voting'):
-            cols = st.columns((1, 1)) if self.options.rank_suitors else [st]
+            cols = st.columns((1, 1)) if self.options.rank_popularity() else [st]
             cols[0].markdown('__Gifts:__')
             cols[0].dataframe(self.suitee_winners, height = table_height(len(SCF_COLLECTION)))
-            if self.options.rank_suitors:
+            if self.options.rank_popularity():
                 cols[1].markdown('__People:__')
                 cols[1].dataframe(self.suitor_winners, height = table_height(len(SCF_COLLECTION)))
     def render_matching(self) -> None:
@@ -231,7 +275,7 @@ class SMPData(NamedTuple):
         if get_state('show_animation_link', False):
             filename = 'animation.mp4'
             animator = gale_shapley_animator(self.suitors, self.suitees)
-            animation = animator.animate(self.anim_actions)
+            animation = animator.animate(self.anim_actions, squash = SQUASH)
             with st.spinner('Generating animation...'):
                 with tempfile.NamedTemporaryFile('wb+', suffix = '.mp4') as tf:
                     animation.save(tf.name, writer = 'ffmpeg', dpi = 400, fps = 2)
@@ -245,8 +289,9 @@ class SMPData(NamedTuple):
         self.render_show_animation()
         self.render_download_animation()
 
+
 def main() -> None:
-    st.title('Gift Matching Algorithm')
+    render_title()
     with st.expander('Upload files (optional)'):
         csv_file = st.file_uploader('Upload CSV of rankings', type = ['csv'], on_change = initialize_state)
         st.session_state.person_pics = st.file_uploader('Upload pics of people', type = ['jpg', 'png'], accept_multiple_files = True, on_change = initialize_state)
@@ -261,8 +306,11 @@ def main() -> None:
         n = len(st.session_state.table_data)
     else:
         n = int(st.number_input('How many people?', min_value = 1, value = 1, format = '%d'))
-    rank_people = st.radio('Rank people by gift popularity?', ['Yes', 'No']) == 'Yes'
-    table_data = render_ranking_form(n, rank_people, have_csv)
+    rank_people = st.selectbox('Ranking criterion?', ['Reciprocal/popular', 'Popular', 'Reciprocal'])
+    rank_people_descr = RANKING_DESCRIPTIONS[rank_people]
+    write_caption(RANKING_DESCRIPTIONS[rank_people])
+    should_rank_people = rank_people != 'Reciprocal'
+    table_data = render_ranking_form(n, should_rank_people, have_csv)
     options = SMPOptions(rank_people)
     st.download_button('Download CSV', table_data.to_csv(index = False), file_name = 'rankings.csv', mime = 'text/csv')
     if get_state('form_submitted', False):

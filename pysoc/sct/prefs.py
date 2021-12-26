@@ -2,6 +2,7 @@ from collections import defaultdict
 from itertools import groupby
 import numpy as np
 import operator
+from operator import itemgetter
 import pandas as pd
 import random
 import matplotlib.pyplot as plt
@@ -219,8 +220,6 @@ class Ranking(PrefRelation):
         return all(len(group) == 1 for group in self.items)
     def to_strict(self):
         return StrictRanking([group[0] for group in self.items])
-    def to_ranking(self):
-        return self
     def rank(self, item):
         """Returns the 0-up rank of a given item."""
         return self.item_ranks[item]
@@ -256,6 +255,15 @@ class Ranking(PrefRelation):
         return Ranking(items)
     def get_ranking(self):
         return self
+    def refine(self, ranking):
+        """Breaks ties using another Ranking."""
+        items = []
+        for lst in self.items:
+            pairs = [(ranking.rank(item), item) for item in lst]
+            pairs.sort()
+            for (_, group) in groupby(pairs, key = itemgetter(0)):
+                items.append([item for (_, item) in group])
+        return Ranking(items)
     def break_ties_randomly(self) -> 'StrictRanking':
         """For each indifference class, breaks ties randomly, and returns a StrictRanking."""
         return StrictRanking([x for xs in self.items for x in np.random.permutation(xs)])
@@ -294,8 +302,10 @@ class StrictRanking(Ranking):
         return True
     def to_strict(self):
         return self
-    def to_ranking(self):
+    def get_ranking(self):
         return Ranking(self.items)
+    def refine(self, ranking):
+        return self.get_ranking()
     def partition_by(self, item):
         """Returns list of four lists: [[elts strictly preferred to item], [elts indifferent with item], [elts strictly less preferred to item], [elts incomparable to item]]."""
         r = self.rank(item)
@@ -344,10 +354,10 @@ class CardinalRanking(Ranking):
         assert(isinstance(score_dict, dict))
         self.score_dict = score_dict
         items_and_scores = list(self.score_dict.items())
-        items_and_scores.sort(key = operator.itemgetter(1), reverse = True)
+        items_and_scores.sort(key = itemgetter(1), reverse = True)
         self.scores = []
         ranking = []
-        for (score, group) in groupby(items_and_scores, operator.itemgetter(1)):
+        for (score, group) in groupby(items_and_scores, itemgetter(1)):
             self.scores.append(score)
             ranking.append([pair[0] for pair in group])
         super().__init__(ranking)
@@ -367,11 +377,13 @@ class CardinalRanking(Ranking):
         xlim = 1.1 * max([abs(score) for score in self.scores])
         plt.xlim((-xlim, xlim))
         plt.show()
-    def to_ranking(self):
+    def get_ranking(self):
         items_by_score = defaultdict(list)
         for (item, score) in self.score_dict.items():
             items_by_score[score].append(item)
-        return Ranking([items_by_score[score] for score in sorted(items_by_score)])
+        return Ranking([items_by_score[score] for score in sorted(items_by_score, reverse = True)])
+    def refine(self, ranking):
+        return self.get_ranking().refine(ranking)
     def __repr__(self):
         s = ''
         for (score, group) in zip(self.scores, self.items):

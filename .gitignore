@@ -1,4 +1,6 @@
 tmp*
+.DS_Store
+app_logo/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

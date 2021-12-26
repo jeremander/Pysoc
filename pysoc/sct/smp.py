@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 import pandas as pd
-from PIL import Image
+from PIL import Image, ImageOps
 from typing import Dict, NamedTuple, Tuple
 
 from pysoc.sct.prefs import CardinalRanking, Profile, StrictRanking
@@ -182,7 +182,7 @@ def make_popular_suitee_profile(suitor_profile: Profile, suitees_by_suitor: Dict
     elif (agg == 'kemeny-young'):
         suitor_ranking = kemeny_young(suitor_profile)
     else:
-        raise ValueError(f"Unknown aggregation method: {agg!r}")
+        raise ValueError(f'Unknown aggregation method: {agg!r}')
     suitors_by_suitee = {}
     for (suitor, suitee) in suitees_by_suitor.items():
         suitors_by_suitee[suitee] = suitor
@@ -193,6 +193,13 @@ def make_popular_suitee_profile(suitor_profile: Profile, suitees_by_suitor: Dict
     for suitee in suitees:
         suitee_rankings.append(suitee_ranking)
     return Profile(suitee_rankings, names = suitees)
+
+def make_border(img: Image, border_frac: float = 0.10) -> Image:
+    size = img.size
+    c = 1 + 2 * border_frac
+    new_size = (int(c * size[0]), int(c * size[1]))
+    border = min((new_size[0] - size[0]) // 2, (new_size[1] - size[1]) // 2)
+    return ImageOps.expand(img, border, fill = 'white')
 
 def make_thumbnail(img: Image, width: int = 200) -> Image:
     size = img.size
@@ -210,7 +217,7 @@ class GaleShapleyAnimator:
         self.nodes = suitors + suitees
         num_suitors, num_suitees = len(suitors), len(suitees)
         self.N = max(num_suitors, num_suitees)
-        self.height = max(1, self.N // 2)
+        self.height = max(2, self.N // 2)
         self.pos = {node : (i, self.height) if (i < num_suitors) else (i - num_suitors, 0) for (i, node) in enumerate(self.nodes)}
         self.node_colors = {node : '#3BB9FF' if (i < num_suitors) else '#F778A1' for (i, node) in enumerate(self.nodes)}
     def init_axis(self):
@@ -231,13 +238,14 @@ class GaleShapleyAnimator:
             p = self.pos[node]
             if img_file:  # use image
                 img = Image.open(img_file)
+                # img = make_border(img, 0.8)
                 img = make_thumbnail(img, width = self.thumbnail_width)
                 self.ax.imshow(img, origin = 'upper', extent = [p[0] - 0.4, p[0] + 0.4, p[1] - 0.4, p[1] + 0.4])
             else:  # use the name
                 circ = plt.Circle(p, 0.35, color = self.node_colors[node])
                 self.ax.add_artist(circ)
                 self.ax.text(*p, node, ha = 'center', va = 'center', fontweight = 'bold', fontsize = 12)
-    def animate(self, anim_df):
+    def animate(self, anim_df, squash: float = 0.8):
         """Animates the Gale-Shapley algorithm. Takes list of suitors, suitees, and animation actions returned by the gale_shapley function."""
         anim_list = [(action, (suitor, suitee)) for (_, action, suitor, suitee) in anim_df.itertuples()]
         self.init_axis()
@@ -251,7 +259,10 @@ class GaleShapleyAnimator:
                 nonlocal lines
                 (flag, edge) = anim_list[frame - 1]
                 xdata, ydata = zip(self.pos[edge[0]], self.pos[edge[1]])
-                ydata = (0.9 * self.height, 0.1 * self.height)  # squash the lines a little
+                # squash the lines by the given factor
+                top = (1 + squash) / 2
+                bottom = 1 - top
+                ydata = (top * self.height, bottom * self.height)
                 def get_line_index():
                     for (i, line) in enumerate(lines):
                         if (tuple(line.get_xdata()) == xdata) and (tuple(line.get_ydata()) == ydata):

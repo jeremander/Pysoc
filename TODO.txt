@@ -1,4 +1,5 @@
-- reciprocal prefs with suitor ranking as tiebreak
+- add dependencies
+- descriptions of ranking criteria
 - logo
-- check properties
 - deploy
+- check properties
