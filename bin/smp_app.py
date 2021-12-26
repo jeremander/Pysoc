@@ -31,9 +31,6 @@ st.set_page_config(page_title = 'Gift Matching', page_icon = '🎁', layout = 'w
 # HELPER FUNCTIONS #
 ####################
 
-def write_caption(s: str) -> None:
-    st.markdown(f'<span style="font-size: 10pt; color: gray;">{s}</span>', unsafe_allow_html = True)
-
 def normalize(s: str) -> str:
     return s.lower().replace('_', ' ')
 
@@ -96,7 +93,7 @@ def render_ranking_form(n: int, should_rank_people: bool, have_csv: bool) -> pd.
         ranking_help = 'Provide each person\'s full ranking of gifts from favorite to least favorite, separated by commas (for gifts whose rankings are tied, you may separate by semicolons.'
         if should_rank_people:
             ranking_help += '<br>Additionally, please provide the gift brought by each person.'
-        write_caption(ranking_help)
+        st.caption(ranking_help, unsafe_allow_html = True)
         df_template = st.session_state.table_data if have_csv else initialize_table(n, rank = should_rank_people)
         response = AgGrid(df_template, height = table_height(n), editable = True, fit_columns_on_grid_load = True)
         st.form_submit_button(on_click = submit_form)
@@ -279,7 +276,7 @@ def main() -> None:
     else:
         n = int(st.number_input('How many people?', min_value = 1, value = 1, format = '%d'))
     rank_people = st.selectbox('Ranking criterion?', ['Reciprocal/popular', 'Popular', 'Reciprocal'])
-    write_caption(RANKING_DESCRIPTIONS[rank_people])
+    st.caption(RANKING_DESCRIPTIONS[rank_people])
     should_rank_people = rank_people != 'Reciprocal'
     table_data = render_ranking_form(n, should_rank_people, have_csv)
     options = SMPOptions(rank_people)
