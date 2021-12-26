@@ -1,5 +1,4 @@
-- add dependencies
-- descriptions of ranking criteria
-- logo
+- allow unlisted items
 - deploy
-- check properties
+- unit testing: check stability/optimality properties
+    - hypothesis with random preference inputs

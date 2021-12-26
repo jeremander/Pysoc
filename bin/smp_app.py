@@ -80,7 +80,9 @@ def render_title() -> None:
     width = int((size[1] / size[0]) * height)
     logo = logo.resize((height, width))
     col2.image(logo)
-    # st.title('Gift Matching Algorithm')
+    with col1.expander('What is this?'):
+        descr = 'This app will to solve the <b>gift exchange problem</b> with the following setup:<br>each person brings one gift to a party and then ranks all of the gifts in preference order. Using a variant of the classic <a href="https://en.wikipedia.org/wiki/Gale–Shapley_algorithm" target="_blank">Gale-Shapley algorithm</a> (1962), an "optimal" matching between people and gifts will be found such that no pair of people will want to trade gifts with each other.'
+        st.caption(descr, unsafe_allow_html = True)
 
 def submit_form() -> None:
     set_state('form_submitted', True)
@@ -90,7 +92,7 @@ def submit_form() -> None:
 def render_ranking_form(n: int, should_rank_people: bool, have_csv: bool) -> pd.DataFrame:
     st.write('Enter user preference rankings.')
     with st.form('rankings form'):
-        ranking_help = 'Provide each person\'s full ranking of gifts from favorite to least favorite, separated by commas (for gifts whose rankings are tied, you may separate by semicolons.'
+        ranking_help = 'Provide each person\'s full ranking of gifts from favorite to least favorite, separated by commas (for gifts whose rankings are tied, you may separate by semicolons).'
         if should_rank_people:
             ranking_help += '<br>Additionally, please provide the gift brought by each person.'
         st.caption(ranking_help, unsafe_allow_html = True)
