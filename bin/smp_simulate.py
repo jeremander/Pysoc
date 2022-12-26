@@ -2,6 +2,7 @@
 """Creates an animation of the Gale-Shapley algorithm given preference data for suitors and suitees."""
 
 import argparse
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -14,7 +15,7 @@ from pysoc.sct.smp import GaleShapleyAnimator, gale_shapley_weak, make_reciproca
 def read_data(filename):
     # TODO: base path for default image paths
     """Given a filename for a CSV indexed by names, with numeric columns for the rankings (semicolon-delimiting ties), and an optional 'Image' column containing paths to images, returns a Profile containing the weak preferences, and also a dictionary from names to image paths. If no numeric columns are provided, returns None instead of the Profiles."""
-    profile = Profile.from_csv(filename)
+    profile = Profile.from_csv(filename, 'Ranked Gifts')
     df = pd.read_csv(filename, index_col = 0)
     names = list(df.index)
     # handle image paths
@@ -29,8 +30,9 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument('suitors', help = 'path to suitor CSV')
-    parser.add_argument('suitees', help = 'path to suitee CSV')
+    parser.add_argument('suitees', nargs = '?', help = 'path to suitee CSV')
     parser.add_argument('--rank-suitors', choices = ('reciprocal', 'popular'), default = 'popular', help = 'how to rank suitors based on brought gifts when the ranking is not provided')
+    parser.add_argument('--random-tiebreak', action = 'store_true', help = 'break ties randomly (instead of interactively)')
     parser.add_argument('-a', '--agg', help = 'rank aggregation method', choices = ('borda', 'kemeny-young'), default = 'borda')
     parser.add_argument('-o', '--outfile', help = 'mp4 output path', default = 'gale_shapley.mp4')
     parser.add_argument('-v', '--verbose', action = 'store_true', help = 'verbosity flag')
@@ -47,13 +49,14 @@ if __name__ == '__main__':
     (suitor_prefs, suitor_images) = read_data(args.suitors)
 
     if (args.suitees is None):
-        if (args.suitee_mode == 'reciprocal'):
+        if (args.rank_suitors == 'reciprocal'):
             suitee_profile = make_reciprocal_suitee_profile(suitor_prefs)
         else:  # popular
             df = pd.read_csv(args.suitors, index_col = 0, dtype = str).fillna('')
             suitees = df['Brought']
             suitees_by_suitor = dict(zip(df.index, suitees))
             suitee_profile = make_popular_suitee_profile(suitor_prefs, suitees_by_suitor, agg = args.agg)
+        suitee_prefs = None
         suitee_images = dict()
     else:
         print("Reading suitee data from {}...".format(args.suitees))
@@ -102,7 +105,7 @@ if __name__ == '__main__':
     print(suitee_prefs)
 
     print("Running Gale-Shapley...\n")
-    (graph, anim_df) = gale_shapley_weak(suitor_prefs, suitee_prefs, verbose = args.verbose)
+    (graph, anim_df) = gale_shapley_weak(suitor_prefs, suitee_prefs, verbose = args.verbose, random_tiebreak = args.random_tiebreak)
 
     animator = GaleShapleyAnimator(suitors, suitees, suitor_images = suitor_images, suitee_images = suitee_images, figsize = args.figsize)
     animator.init_axis()

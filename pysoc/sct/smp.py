@@ -90,7 +90,7 @@ def gale_shapley_weak(suitor_prefs: Profile, suitee_prefs: Profile, verbose: boo
                 suitor_ranks[suitor] += 1
                 suitee = suitor_strict_prefs[suitor][suitor_ranks[suitor]]
                 if verbose:
-                    print("{} proposes to {}".format(suitor, suitee))
+                    print(f'{suitor} proposes to {suitee}')
                 graph.add_edge(suitor, suitee)
                 actions.append(('add', suitor, suitee))
         for suitee in suitees:
@@ -112,6 +112,7 @@ def gale_shapley_weak(suitor_prefs: Profile, suitee_prefs: Profile, verbose: boo
                                     break
                                 else:
                                     print(f"Invalid value '{suitor}'")
+                        break
                 for neighbor in neighbors:  # reject the other neighbors
                     if (neighbor != suitor):
                         if verbose:

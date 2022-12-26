@@ -4,6 +4,7 @@
     popular: first the suitees are ranked by popularity using rank aggregation; each suitor provided one suitee, so the suitors are thus ranked by their corresponding suitee"""
 
 import argparse
+
 import pandas as pd
 
 from pysoc.sct.prefs import Profile
@@ -24,7 +25,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     print(f'Reading suitor Profile from {args.suitors}')
-    suitor_profile = Profile.from_csv(args.suitors)
+    suitor_profile = Profile.from_csv(args.suitors, rank_column = 'Ranked Gifts')
 
     if (args.mode == 'compliant'):
         suitee_profile = make_compliant_suitee_profile(suitor_profile)

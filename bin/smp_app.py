@@ -1,12 +1,13 @@
 import base64
+from pathlib import Path
+import tempfile
+from typing import Any, BinaryIO, Dict, List, NamedTuple
+
 import networkx as nx
 import pandas as pd
-from pathlib import Path
 import PIL.Image
 from st_aggrid import AgGrid
 import streamlit as st
-import tempfile
-from typing import Any, BinaryIO, Dict, List, NamedTuple
 
 from pysoc.sct.prefs import Profile, Ranking
 from pysoc.sct.sct import SCF_COLLECTION
@@ -71,6 +72,7 @@ def initialize_state() -> None:
     # set_state('show_animation', False)
 
 def render_title() -> None:
+    st.warning('This app is in beta. It may not work properly on mobile browsers.')
     col1, _, col2 = st.columns([6, 1, 8])
     col1.title('Gift Matching Algorithm')
     logo_path = Path(__file__).parents[1] / 'app_logo' / 'logo.jpg'
@@ -100,9 +102,6 @@ def render_ranking_form(n: int, should_rank_people: bool, have_csv: bool) -> pd.
         response = AgGrid(df_template, height = table_height(n), editable = True, fit_columns_on_grid_load = True)
         st.form_submit_button(on_click = submit_form)
     return response['data']
-
-def parse_ranking(s: str) -> Ranking:
-    return Ranking([[item.strip() for item in tok.split(';')] for tok in s.split(',')])
 
 def get_winners(profile: Profile) -> pd.DataFrame:
     scfs, winners = [], []
@@ -135,6 +134,7 @@ def gale_shapley_animator(suitors: List[str], suitees: List[str]) -> GaleShapley
 class SMPOptions(NamedTuple):
     rank_suitors: str
     agg: str = 'borda'
+    # agg: str = 'kemeny-young'
     def rank_popularity(self) -> bool:
         return (self.rank_suitors != 'Reciprocal')
     def get_suitee_profile(self, suitor_profile: Profile, brought: List[str]) -> Profile:
@@ -172,10 +172,10 @@ class SMPData(NamedTuple):
             try:
                 if (not s):
                     raise ValueError('No gifts listed.')
-                ranking = parse_ranking(s)
+                ranking = Ranking.from_string(s)
             except ValueError as e:
                 raise ValueError(f'Ranking for {suitor}: {e}')
-        rankings = [parse_ranking(s) for s in df['Ranked Gifts']]
+        rankings = [Ranking.from_string(s) for s in df['Ranked Gifts']]
         for (i, ranking) in enumerate(rankings):
             suitor = suitors[i]
             num_suitees = len(ranking.universe)
@@ -269,7 +269,7 @@ def main() -> None:
         st.session_state.gift_pics = st.file_uploader('Upload pics of gifts', type = ['jpg', 'png'], accept_multiple_files = True, on_change = initialize_state)
         if (csv_file is not None):
             try:
-                st.session_state.table_data = load_table_from_csv(csv_file)
+                st.session_state.table_data = load_table_from_csv(csv_file, 'Ranked Gifts')
             except ValueError as e:
                 st.error(e)
     have_csv = 'table_data' in st.session_state

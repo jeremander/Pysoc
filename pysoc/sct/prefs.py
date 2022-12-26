@@ -11,6 +11,7 @@ from scipy.special import binom
 
 from pysoc.utils import flatten
 
+
 class PrefRelation(object):
     """Object representation a general preference relation (reflexive, but no requirement of completeness, transitivity, or antisymmetry)."""
     def __init__(self, pref_matrix, items = None):
@@ -116,7 +117,7 @@ class PrefRelation(object):
         if not(self.is_complete() and self.is_transitive()):
             raise ValueError("The relation is not a complete preorder.")
         maxima = self.maximum_elements()
-        remainder = self.reduce_to_subset([item for item in self.items if (item not in maxima)])
+        remainder = self.with_universe([item for item in self.items if (item not in maxima)])
         return Ranking(maxima + remainder.get_ranking().items)
     def reverse(self):
         """Returns new PrefRelation object such that for all pairs (x, y) such that x > y, the ordering is reversed."""
@@ -177,14 +178,15 @@ class PrefRelation(object):
         if (len(minima) != 1):
             return None
         return minima[0]
-    def reduce_to_subset(self, subset):
-        """Given a subset of the candidates, reduces the PrefOrdering to this subset."""
-        if (len(subset) == 0):
+    def with_universe(self, universe):
+        """Given a new universe of candidates, creates a new PrefRelation with this universe that is consistent with the original one."""
+        if (len(universe) == 0):
             return PrefRelation(np.array([]), [])
-        subset_indices = [self.item_indices[item] for item in subset]
-        mat = self.pref_matrix[subset_indices, :][:, subset_indices]
-        items = [self.items[i] for i in subset_indices]
-        return PrefRelation(mat, items)
+        elif universe.issubset(self.universe):
+            subset_indices = [self.item_indices[item] for item in universe]
+            mat = self.pref_matrix[subset_indices, :][:, subset_indices]
+            items = [self.items[i] for i in subset_indices]
+            return PrefRelation(mat, items)
     def __repr__(self):
         return repr(pd.DataFrame(self.pref_matrix, index = self.items, columns = self.items))
     def __len__(self):
@@ -213,6 +215,7 @@ class Ranking(PrefRelation):
                 self.items.append([item])
         self.levels = len(self.items)  # number of distinct rankings
         self.item_ranks = dict()
+        # TODO: fix levels
         for i in range(self.levels):
             for elt in self.items[i]:
                 self.item_ranks[elt] = i
@@ -248,10 +251,21 @@ class Ranking(PrefRelation):
     def _extremum_elements(self, maximum):
         """Returns the set of maximum or minimum elements, depending on if maximum = True."""
         return self._extremal_elements(maximum)  # coincide with extremal elements for complete preferences
-    def reduce_to_subset(self, subset):
-        """Given a subset of the candidates, reduces the Ranking to this subset."""
-        items = [[x for x in lst if (x in subset)] for lst in self.items]
-        items = [lst for lst in items if (len(lst) > 0)]
+    def with_universe(self, universe):
+        univ = set(universe)
+        included = set()
+        items = []
+        for lst in self.items:
+            item = []
+            for x in lst:
+                if (x in univ):
+                    item.append(x)
+                    included.add(x)
+            if item:
+                items.append(item)
+        excluded = [x for x in universe if (x not in included)]
+        if excluded:
+            items.append(excluded)
         return Ranking(items)
     def get_ranking(self):
         return self
@@ -286,6 +300,13 @@ class Ranking(PrefRelation):
                 items_list.append(current_list)
                 current_list = []
         return cls(items_list)
+    @classmethod
+    def from_string(cls, s: str) -> 'Ranking':
+        """Parses a Ranking from a comma-separated string.
+        Commas delimit strictly ranked sections; semicolons delimit equally-ranked items."""
+        if s:
+            return Ranking([[item.strip() for item in tok.split(';')] for tok in s.split(',')])
+        return Ranking([])
 
 class StrictRanking(Ranking):
     """Object representing a strict preference ranking (complete, reflexive, transitive, antisymmetric set of ranked preferences, i.e. a complete order)."""
@@ -317,10 +338,9 @@ class StrictRanking(Ranking):
         if maximal:
             return [self.items[0]]
         return [self.items[-1]]
-    def reduce_to_subset(self, subset):
-        """Given a subset of the candidates, reduces the StrictRanking to this subset."""
-        items = [x for x in self.items if x in subset]
-        return StrictRanking(items)
+    def with_universe(self, universe):
+        ranking = self.get_ranking().with_universe(universe)
+        return ranking.to_strict() if ranking.is_strict() else ranking
     def break_ties_randomly(self) -> 'StrictRanking':
         return self
     def __repr__(self):
@@ -453,15 +473,12 @@ class Profile(object):
     """Object representing a vector of ranked preferences."""
     def __init__(self, prefs, names = None):
         """Constructor takes list of PrefRelation objects, and (optionally) an identically-sized list of names of the population members. Default will be range(n), where n = len(prefs)."""
-        self.prefs = prefs
-        self.n = len(self.prefs)
+        self.n = len(prefs)
         if (self.n > 0):
-            self.universe = self.prefs[0].universe
-            for i in range(1, self.n):
-                if (self.prefs[i].universe != self.universe):
-                    raise ValueError("All rankings must have the same set of alternatives.")
+            self.universe = {elt for ranking in prefs for elt in ranking.universe}
         else:
             self.universe = set()
+        self.prefs = [pref.with_universe(self.universe) for pref in prefs]
         self.universe_list = list(self.universe)  # handy to have list representation around too
         self.m = len(self.universe)
         if (names is None):
@@ -470,9 +487,9 @@ class Profile(object):
             assert (len(names) == self.n), "Mismatch between number of PrefRelations and number of names."
             self.names = names[:self.n]
         self.indices_by_name = {name : i for (i, name) in enumerate(self.names)}
-    def reduce_to_subset(self, subset):
+    def with_universe(self, universe):
         """Given a subset of the candidates, reduces each member's PrefRelation to this subset."""
-        prefs = [self.prefs[i].reduce_to_subset(subset) for i in range(self.n)]
+        prefs = [self.prefs[i].with_universe(universe) for i in range(self.n)]
         return Profile(prefs, self.names)
     def reverse(self):
         """For each member in the Profile, reverse the ordering of their preferences."""
@@ -515,7 +532,7 @@ class Profile(object):
         else:
             ballot = dict.fromkeys(subset, 0)
         for i in range(self.n):
-            prefs = self.prefs[i] if (subset is None) else self.prefs[i].reduce_to_subset(subset)
+            prefs = self.prefs[i] if (subset is None) else self.prefs[i].with_universe(subset)
             maximum = prefs.max()
             if (maximum is None):
                 if split:
@@ -561,22 +578,9 @@ class Profile(object):
                     f.write(',')
                 f.write('\n')
     @classmethod
-    def from_csv(cls, filename):
+    def from_csv(cls, filename, rank_column = 'Ranking'):
         df = pd.read_csv(filename, index_col = 0, dtype = str).fillna('')
-        numeric_cols = sorted([col for col in df.columns if all(c.isdigit() for c in col)], key = int)
-        rankings = []
-        for tup in df[numeric_cols].itertuples():
-            ranking = []
-            for col in tup[1:]:
-                if (len(col) == 0):
-                    break
-                else:
-                    ranking.append(col.split(';'))
-            rankings.append(Ranking(ranking))
-        for ranking in rankings:
-            if ranking.universe != rankings[0].universe:
-                breakpoint()
-        assert all(ranking.universe == rankings[0].universe for ranking in rankings)
+        rankings = [Ranking.from_string(s) for s in df[rank_column]]
         return cls(rankings, names = list(df.index))
     @classmethod
     def random(cls, items, n = None, names = None, indifference_prob = 0.0):
@@ -592,7 +596,7 @@ class Profile(object):
             else:
                 n = len(names)
         prefs = []
-        for i in range(n):
+        for _ in range(n):
             if (indifference_prob == 0.0):
                 prefs.append(StrictRanking.random(items))
             else:

@@ -185,7 +185,7 @@ def instant_runoff(profile, tiebreak = 'all', split = True):
     for item in ballot:
         if (ballot[item] == min_votes):
             losers.append(item)
-    new_prof = profile.reduce_to_subset([item for item in profile.universe_list if (item not in losers)])
+    new_prof = profile.with_universe([item for item in profile.universe_list if (item not in losers)])
     return instant_runoff(new_prof, tiebreak = tiebreak, split = split)
 
 @scf
@@ -196,7 +196,7 @@ def hare_rule(profile, split = True):
     if (max(ballot.values()) == min_votes):  # everyone wins
         return profile.universe_list
     remaining_items = [item for item in profile.universe_list if (ballot[item] > min_votes)]
-    new_prof = profile.reduce_to_subset(remaining_items)
+    new_prof = profile.with_universe(remaining_items)
     return hare_rule(new_prof, split = split)
 
 @scf
@@ -208,7 +208,7 @@ def coombs_rule(profile, split = True):
     if (min(loser_ballot.values()) == max_losing_votes):  # everyone wins
         return profile.universe_list
     remaining_items = [item for item in profile.universe_list if (loser_ballot[item] < max_losing_votes)]
-    new_prof = profile.reduce_to_subset(remaining_items)
+    new_prof = profile.with_universe(remaining_items)
     return coombs_rule(new_prof, split = split)
 
 @scf
