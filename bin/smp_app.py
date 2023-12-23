@@ -13,6 +13,7 @@ from pysoc.sct.prefs import Profile, Ranking
 from pysoc.sct.sct import SCF_COLLECTION
 from pysoc.sct.smp import GaleShapleyAnimator, gale_shapley_weak, get_rank_signatures, make_reciprocal_suitee_profile, make_popular_suitee_profile
 
+
 version = '0.1'
 
 ROW_HEIGHT = 28
@@ -39,7 +40,7 @@ def normalize_path(path: str) -> str:
     return normalize(Path(path).stem)
 
 def table_height(num_rows: int) -> int:
-    return 34 + ROW_HEIGHT * num_rows
+    return 34 + ROW_HEIGHT * (num_rows + 1)
 
 def initialize_table(n: int, rank: bool = True) -> pd.DataFrame:
     people = [f'Person {i}' for i in range(1, n + 1)]
@@ -83,7 +84,7 @@ def render_title() -> None:
     logo = logo.resize((height, width))
     col2.image(logo)
     with col1.expander('What is this?'):
-        descr = 'This app will to solve the <b>gift exchange problem</b> with the following setup:<br>each person brings one gift to a party and then ranks all of the gifts in preference order. Using a variant of the classic <a href="https://en.wikipedia.org/wiki/Gale–Shapley_algorithm" target="_blank">Gale-Shapley algorithm</a> (1962), an "optimal" matching between people and gifts will be found such that no pair of people will want to trade gifts with each other.'
+        descr = 'This app will to solve the <b>gift exchange problem</b> with the following setup:<br>Each person brings one gift to a party and then ranks all of the gifts in preference order. Using a variant of the classic <a href="https://en.wikipedia.org/wiki/Gale–Shapley_algorithm" target="_blank">Gale-Shapley algorithm</a> (1962), an "optimal" matching between people and gifts will be found such that no pair of people will want to trade gifts with each other.'
         st.caption(descr, unsafe_allow_html = True)
 
 def submit_form() -> None:
@@ -111,7 +112,7 @@ def get_winners(profile: Profile) -> pd.DataFrame:
         winners.append(', '.join(scf(profile)))
     return pd.DataFrame({'scheme' : scfs, 'winners' : winners})
 
-def get_images(names: List[str], files: List[st.uploaded_file_manager.UploadedFile]) -> Dict[str, BinaryIO]:
+def get_images(names: List[str], files: List[st.runtime.uploaded_file_manager.UploadedFile]) -> Dict[str, BinaryIO]:
     d = {}
     names_by_key = {normalize(name) : name for name in names}
     for f in files:
@@ -269,7 +270,8 @@ def main() -> None:
         st.session_state.gift_pics = st.file_uploader('Upload pics of gifts', type = ['jpg', 'png'], accept_multiple_files = True, on_change = initialize_state)
         if (csv_file is not None):
             try:
-                st.session_state.table_data = load_table_from_csv(csv_file, 'Ranked Gifts')
+                # st.session_state.table_data = load_table_from_csv(csv_file, 'Ranked Gifts')
+                st.session_state.table_data = load_table_from_csv(csv_file)
             except ValueError as e:
                 st.error(e)
     have_csv = 'table_data' in st.session_state

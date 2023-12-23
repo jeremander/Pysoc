@@ -214,7 +214,7 @@ class Ranking(PrefRelation):
             else:
                 self.items.append([item])
         self.levels = len(self.items)  # number of distinct rankings
-        self.item_ranks = dict()
+        self.item_ranks = {}
         # TODO: fix levels
         for i in range(self.levels):
             for elt in self.items[i]:

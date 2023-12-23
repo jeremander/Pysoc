@@ -191,7 +191,7 @@ def make_popular_suitee_profile(suitor_profile: Profile, suitees_by_suitor: Dict
     suitee_ranking = CardinalRanking({suitor : suitor_ranking.score_dict[suitees_by_suitor[suitor]] for suitor in suitors})
     suitees = sorted(list(suitor_profile.universe))
     suitee_rankings = []
-    for suitee in suitees:
+    for _ in suitees:
         suitee_rankings.append(suitee_ranking)
     return Profile(suitee_rankings, names = suitees)
 
