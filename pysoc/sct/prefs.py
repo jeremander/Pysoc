@@ -381,10 +381,7 @@ class CardinalRanking(Ranking):
             self.scores.append(score)
             ranking.append([pair[0] for pair in group])
         super().__init__(ranking)
-        try:
-            self.item_width = max([len(str(item)) for item in self.items])  # for display purposes
-        except ValueError:
-            breakpoint()
+        self.item_width = max([len(str(item)) for item in self.items])  # for display purposes
     def score(self, item):
         """Returns score of a given item."""
         return self.score_dict[item]

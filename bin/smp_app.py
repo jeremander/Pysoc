@@ -1,4 +1,6 @@
 import base64
+from collections import Counter
+from functools import reduce
 from pathlib import Path
 import tempfile
 from typing import Any, BinaryIO, Dict, List, NamedTuple
@@ -11,12 +13,13 @@ import streamlit as st
 
 from pysoc.sct.prefs import Profile, Ranking
 from pysoc.sct.sct import SCF_COLLECTION
-from pysoc.sct.smp import GaleShapleyAnimator, gale_shapley_weak, get_rank_signatures, make_reciprocal_suitee_profile, make_popular_suitee_profile
+from pysoc.sct.smp import GaleShapleyAnimator, aggregate_ranking, gale_shapley_weak, get_rank_signatures, make_reciprocal_suitee_profile, make_popular_suitee_profile
 
 
 version = '0.1'
 
-ROW_HEIGHT = 28
+HEADER_HEIGHT = 38
+ROW_HEIGHT = 35
 SQUASH = 0.9
 THUMBNAIL_WIDTH = 100
 
@@ -40,7 +43,7 @@ def normalize_path(path: str) -> str:
     return normalize(Path(path).stem)
 
 def table_height(num_rows: int) -> int:
-    return 34 + ROW_HEIGHT * (num_rows + 1)
+    return HEADER_HEIGHT + ROW_HEIGHT * num_rows
 
 def initialize_table(n: int, rank: bool = True) -> pd.DataFrame:
     people = [f'Person {i}' for i in range(1, n + 1)]
@@ -49,7 +52,6 @@ def initialize_table(n: int, rank: bool = True) -> pd.DataFrame:
     if rank:
         d['Brought'] = empty_col
     d['Ranked Gifts'] = empty_col
-    # return TEST_DF
     return pd.DataFrame(d)
 
 def load_table_from_csv(path: str) -> pd.DataFrame:
@@ -132,12 +134,14 @@ def gale_shapley_animator(suitors: List[str], suitees: List[str]) -> GaleShapley
     height = max(2, 0.55 * width)
     return GaleShapleyAnimator(suitors, suitees, suitor_images = suitor_images, suitee_images = suitee_images, figsize = (width, height), thumbnail_width = 100)
 
+
 class SMPOptions(NamedTuple):
     rank_suitors: str
     agg: str = 'borda'
-    # agg: str = 'kemeny-young'
+
     def rank_popularity(self) -> bool:
         return (self.rank_suitors != 'Reciprocal')
+
     def get_suitee_profile(self, suitor_profile: Profile, brought: List[str]) -> Profile:
         if (self.rank_suitors == 'Popular'):
             suitees_by_suitor = {}
@@ -152,6 +156,7 @@ class SMPOptions(NamedTuple):
             rankings = [ranking1.refine(ranking2) for (ranking1, ranking2) in zip(reciprocal, popular)]
             return Profile(rankings, names = reciprocal.names)
 
+
 class SMPData(NamedTuple):
     options: SMPOptions
     suitors: List[str]
@@ -163,6 +168,7 @@ class SMPData(NamedTuple):
     matching_graph: nx.Graph
     anim_actions: pd.DataFrame
     matches: pd.DataFrame
+
     @classmethod
     def from_form_data(cls, df: pd.DataFrame, options: SMPOptions) -> 'SMPData':
         suitors = list(df['Person'])
@@ -177,33 +183,43 @@ class SMPData(NamedTuple):
             except ValueError as e:
                 raise ValueError(f'Ranking for {suitor}: {e}')
         rankings = [Ranking.from_string(s) for s in df['Ranked Gifts']]
+        brought_ctr = Counter(df['Brought'])
+        for (gift, ct) in brought_ctr.items():
+            if (ct > 1):
+                raise ValueError(f'Gift {gift} was listed as brought by more than one person.')
+        brought = set(df['Brought'])
+        assert len(brought) == num_suitors
         for (i, ranking) in enumerate(rankings):
             suitor = suitors[i]
+            for suitee in ranking.universe:
+                if (suitee not in brought):
+                    raise ValueError(f'Gift {suitee} (listed by {suitor}) not found among list of gifts brought.')
             num_suitees = len(ranking.universe)
-            if (num_suitees != num_suitors):
-                raise ValueError(f'Incorrect number of ranked gifts for {suitor} (expected {num_suitors}, got {num_suitees})')
-            if (ranking.universe != rankings[0].universe):
-                raise ValueError(f'Ranked gifts for {suitor} inconsistent with prior rows.')
-        suitees = sorted(ranking.universe)
+            if (num_suitees < num_suitors):
+                # put any missing gifts at the end of each ranking, tied
+                tier = sorted(brought.difference(ranking.universe))
+                rankings[i] = Ranking(ranking.items + [tier])
+        suitees = sorted(brought)
+        # suitees = sorted(ranking.universe)
         suitor_profile = Profile(rankings, names = suitors)
-        brought = []
         if options.rank_popularity():  # validate list of brought items
-            brought = list(df['Brought'])
             for suitee in suitees:
                 if (suitee not in brought):
                     raise ValueError(f'Must indicate which person brought {suitee!r}')
             for (suitor, suitee) in zip(df['Person'], df['Brought']):
                 if (suitee not in suitees):
                     raise ValueError(f'Invalid brought item for {suitor}: {suitee!r}')
-        suitee_profile = options.get_suitee_profile(suitor_profile, brought)
+        suitee_profile = options.get_suitee_profile(suitor_profile, suitees)
         suitor_winners = get_winners(suitee_profile)
         suitee_winners = get_winners(suitor_profile)
         (graph, anim_actions) = gale_shapley_weak(suitor_profile, suitee_profile, random_tiebreak = True)
         matches = pd.DataFrame(graph.edges, columns = ['Person', 'Gift']).sort_values(by = 'Person', key = lambda s : [suitors.index(i) for i in s])
         return SMPData(options, suitors, suitees, suitor_profile, suitee_profile, suitor_winners, suitee_winners, graph, anim_actions, matches)
+
     @property
     def num_suitors(self) -> int:
         return len(self.suitors)
+
     def render_preferences(self) -> None:
         (col1, col2) = st.columns((1, 1))
         col1.markdown('__Gift Rankings__')
@@ -214,6 +230,7 @@ class SMPData(NamedTuple):
         suitee_profile = Profile([ranking.get_ranking() for ranking in self.suitee_profile], names = self.suitee_profile.names)
         suitee_df = suitee_profile.to_pandas()
         col2.dataframe(suitee_df, height = table_height(len(suitee_df)))
+
     def render_rcv(self) -> None:
         with st.expander('Ranked Choice Voting'):
             cols = st.columns((1, 1)) if self.options.rank_popularity() else [st]
@@ -222,6 +239,11 @@ class SMPData(NamedTuple):
             if self.options.rank_popularity():
                 cols[1].markdown('__People:__')
                 cols[1].dataframe(self.suitor_winners, height = table_height(len(SCF_COLLECTION)))
+            # st.markdown('__Gift popularity ranking:__')
+            # ranking = aggregate_ranking(self.suitor_profile, agg = self.options.agg)
+            # ranking = Ranking(ranking.items)
+            # st.write(str(ranking))
+
     def render_matching(self) -> None:
         with st.expander('Matching Results'):
             st.dataframe(self.matches, height = table_height(self.num_suitors))
@@ -229,6 +251,7 @@ class SMPData(NamedTuple):
             st.write(f'Rank Signature: {suitor_sig.signature}')
             happiness_score = round(suitor_sig.happiness_score)
             st.write(f'Happiness Score: {happiness_score}%')
+
     def render_show_animation(self) -> None:
         def clicked_show_animation():
             set_state('form_submitted', True)
@@ -240,6 +263,7 @@ class SMPData(NamedTuple):
             with st.spinner('Generating animation...'):
                 anim_height = 100 + 100 * animator.figsize[1]
                 st.components.v1.html(animation.to_jshtml(), height = anim_height)
+
     def render_download_animation(self) -> None:
         def clicked_download_animation():
             set_state('form_submitted', True)
@@ -258,9 +282,11 @@ class SMPData(NamedTuple):
                     b64 = base64.b64encode(data).decode()
                     link = f'<a href="data:application/octet-stream;base64,{b64}" download="{filename}">{filename}</a>'
             st.markdown(link, unsafe_allow_html = True)
+
     def render_animation(self) -> None:
         self.render_show_animation()
         self.render_download_animation()
+
 
 def main() -> None:
     render_title()

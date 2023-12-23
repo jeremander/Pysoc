@@ -9,7 +9,7 @@ import pandas as pd
 from PIL import Image, ImageOps
 from typing import Dict, NamedTuple, Tuple
 
-from pysoc.sct.prefs import CardinalRanking, Profile, StrictRanking
+from pysoc.sct.prefs import CardinalRanking, Profile, Ranking, StrictRanking
 from pysoc.sct.sct import borda_count_ranking, kemeny_young
 
 # raise size limit for animations
@@ -176,20 +176,25 @@ def make_reciprocal_suitee_profile(suitor_profile: Profile) -> Profile:
         suitee_rankings.append(CardinalRanking({suitor : -suitor_profile[suitor].rank(suitee) for suitor in suitors}))
     return Profile(suitee_rankings, names = suitees)
 
-def make_popular_suitee_profile(suitor_profile: Profile, suitees_by_suitor: Dict[str, str], agg: str = 'borda') -> Profile:
-    """First rank the suitees by popularity using rank aggregation then rank the suitors by their corresponding suitee (each suitor "provided" a suitee)."""
+def aggregate_ranking(profile: Profile, agg: str = 'borda') -> Ranking:
+    """Given a profile and rank aggregation method, returns a Ranking which aggregates the profile."""
     if (agg == 'borda'):
-        suitor_ranking = borda_count_ranking(suitor_profile)
+        return borda_count_ranking(profile)
     elif (agg == 'kemeny-young'):
-        suitor_ranking = kemeny_young(suitor_profile)
+        # TODO: make this a weak ranking?
+        return kemeny_young(profile)[0]
     else:
         raise ValueError(f'Unknown aggregation method: {agg!r}')
+
+def make_popular_suitee_profile(suitor_profile: Profile, suitees_by_suitor: Dict[str, str], agg: str = 'borda') -> Profile:
+    """First rank the suitees by popularity using rank aggregation then rank the suitors by their corresponding suitee (each suitor "provided" a suitee)."""
+    suitor_ranking = aggregate_ranking(suitor_profile, agg = agg)
     suitors_by_suitee = {}
     for (suitor, suitee) in suitees_by_suitor.items():
         suitors_by_suitee[suitee] = suitor
     suitors = suitor_profile.names
     suitee_ranking = CardinalRanking({suitor : suitor_ranking.score_dict[suitees_by_suitor[suitor]] for suitor in suitors})
-    suitees = sorted(list(suitor_profile.universe))
+    suitees = sorted(suitor_profile.universe)
     suitee_rankings = []
     for _ in suitees:
         suitee_rankings.append(suitee_ranking)
