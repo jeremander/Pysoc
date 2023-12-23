@@ -8,7 +8,7 @@ from pysoc.sct.prefs import Ranking
 
 
 # TODO: move these to config file
-MIN_CHOICES = 3
+MIN_CHOICES = 5
 SELF_RANKED_LAST = True
 
 conn = st.connection('gsheets', type = GSheetsConnection)
