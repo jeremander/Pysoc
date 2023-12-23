@@ -27,6 +27,7 @@ def validate_input(name: str, brought: str, description: str, ranking: str) -> s
         raise ValueError('Gift code must be a single letter.')
     if (not description):
         raise ValueError('Please provide a description.')
+    ranking = ranking.upper()
     for c in ranking:
         if not (c.isalpha() or c.isspace() or (c == '/')):
             raise ValueError(f'Invalid character {c!r} in ranking.')
