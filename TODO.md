@@ -7,9 +7,8 @@
 
 ## SMP app
 
-- No integer indices in tables
 - Input Google Sheets link
-- Test on web app (error: invalid extension mp4)?
+- In-browser progress bar
 
 ## SMP
 
