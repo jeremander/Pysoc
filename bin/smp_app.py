@@ -209,7 +209,7 @@ class SMPData(NamedTuple):
             for (suitor, suitee) in zip(df['Person'], df['Brought']):
                 if (suitee not in suitees):
                     raise ValueError(f'Invalid brought item for {suitor}: {suitee!r}')
-        suitee_profile = options.get_suitee_profile(suitor_profile, suitees)
+        suitee_profile = options.get_suitee_profile(suitor_profile, list(df['Brought']))
         suitor_winners = get_winners(suitee_profile)
         suitee_winners = get_winners(suitor_profile)
         (graph, anim_actions) = gale_shapley_weak(suitor_profile, suitee_profile, random_tiebreak = True)
@@ -239,18 +239,18 @@ class SMPData(NamedTuple):
             if self.options.rank_popularity():
                 cols[1].markdown('__People:__')
                 cols[1].dataframe(self.suitor_winners, height = table_height(len(SCF_COLLECTION)))
-            # st.markdown('__Gift popularity ranking:__')
-            # ranking = aggregate_ranking(self.suitor_profile, agg = self.options.agg)
-            # ranking = Ranking(ranking.items)
-            # st.write(str(ranking))
+            st.markdown('__Gift popularity ranking:__')
+            ranking = aggregate_ranking(self.suitor_profile, agg = self.options.agg)
+            ranking = Ranking(ranking.items)
+            st.write(str(ranking))
 
     def render_matching(self) -> None:
         with st.expander('Matching Results'):
             st.dataframe(self.matches, height = table_height(self.num_suitors))
             (suitor_sig, _) = get_rank_signatures(self.suitor_profile, self.suitee_profile, self.matching_graph)
             st.write(f'Rank Signature: {suitor_sig.signature}')
-            happiness_score = round(suitor_sig.happiness_score)
-            st.write(f'Happiness Score: {happiness_score}%')
+            # happiness_score = round(suitor_sig.happiness_score)
+            st.write(f'Happiness Score: {suitor_sig.happiness_score:.3f}%')
 
     def render_show_animation(self) -> None:
         def clicked_show_animation():

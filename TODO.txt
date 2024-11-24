@@ -1,7 +1,0 @@
-- make Kemeny-Young work
-    - ranked pairs
-- submit not working on deployed version
-- allow unlisted items
-- deploy
-- unit testing: check stability/optimality properties
-    - hypothesis with random preference inputs

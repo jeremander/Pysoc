@@ -19,13 +19,13 @@ conn = st.connection('gsheets', type = GSheetsConnection)
 def validate_input(name: str, brought: str, description: str, ranking: str) -> str:
     """Validates user input fields.
     Returns the canonical ranking string."""
-    if (not name):
+    if not name:
         raise ValueError('Please input your name.')
-    if (not brought):
+    if not brought:
         raise ValueError("Please provide your gift's letter code.")
     if (not brought.isalpha()) or (len(brought) > 1):
         raise ValueError('Gift code must be a single letter.')
-    if (not description):
+    if not description:
         raise ValueError('Please provide a description.')
     ranking = ranking.upper()
     for c in ranking:
@@ -40,9 +40,9 @@ def validate_input(name: str, brought: str, description: str, ranking: str) -> s
                 raise ValueError(f'Error in ranking: {item!r} is not a letter.')
         items.append(tier)
     ranking_obj = Ranking(items)
-    if (len(ranking_obj) == 0):
+    if len(ranking_obj) == 0:
         raise ValueError('Please provide your ranking.')
-    if (len(ranking_obj.universe) < MIN_CHOICES):
+    if len(ranking_obj.universe) < MIN_CHOICES:
         raise ValueError(f'Must rank at least {MIN_CHOICES} items.')
     if SELF_RANKED_LAST and (brought in ranking_obj.universe):
         raise ValueError(f'You may not include your own gift ({brought}) in the ranking.')
