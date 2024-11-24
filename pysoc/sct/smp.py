@@ -213,12 +213,13 @@ def make_border(img: Image, border_frac: float = 0.10) -> Image:
 def make_thumbnail(img: Image, width: int = 200) -> Image:
     size = img.size
     ratio = width / size[0]
-    return img.resize((int(size[0] * ratio), int(size[1] * ratio)), Image.ANTIALIAS)
+    new_size = (int(size[0] * ratio), int(size[1] * ratio))
+    return img.resize(new_size)
 
 
 class GaleShapleyAnimator:
 
-    def __init__(self, suitors, suitees, suitor_images = dict(), suitee_images = dict(), figsize = None, thumbnail_width: int = 200):
+    def __init__(self, suitors, suitees, suitor_images = {}, suitee_images = {}, figsize = None, thumbnail_width: int = 200):
         self.suitors = suitors
         self.suitees = suitees
         self.suitor_images = suitor_images

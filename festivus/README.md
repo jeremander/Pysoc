@@ -35,6 +35,14 @@ This lets you upload a CSV file of gift rankings, and it will produce an animate
 6. Download animated video as MP4.
 7. Present the animation, along with "most popular gift" winner, etc.
 
+## Troubleshooting
+
+The SMP web app may have issues with video rendering (e.g. it can run out of memory). If this happens, just run the app locally:
+
+```bash
+streamlit run bin/smp_app.py
+```
+
 <!-- Links -->
 
 [Google sheet]: https://docs.google.com/spreadsheets/d/1Ofsf4TvR66I3hSslhSe2dR--cN-ZaeA31Mkb7blzgqo/edit?gid=0#gid=0

@@ -20,7 +20,7 @@ def normalize_name(name: str) -> str:
     """Normalizes a name."""
     return name.strip()
 
-def validate_input(name: str, brought: str, description: str, ranking: str) -> str:
+def validate_input(df: pd.DataFrame, name: str, brought: str, description: str, ranking: str) -> str:
     """Validates user input fields.
     Returns the canonical ranking string."""
     if not name:
@@ -35,6 +35,10 @@ def validate_input(name: str, brought: str, description: str, ranking: str) -> s
     for c in ranking:
         if not (c.isalpha() or c.isspace() or (c == '/')):
             raise ValueError(f'Invalid character {c!r} in ranking.')
+    if (df['Person'] == name).any():
+        raise ValueError(f'Choices already submitted for {name!r}. Please reset data in Google spreadsheet.')
+    if (df['Brought'] == brought).any():
+        raise ValueError(f'Gift {brought!r} was brought by someone else.')
     items = []
     toks = ranking.strip().split()
     for tok in toks:
@@ -73,14 +77,11 @@ def main() -> None:
     ranking = st.text_input('Gift ranking:')
     st.write('')
     if st.button('Submit', type='primary'):
+        df = conn.read(ttl=0).dropna(how='all')
         try:
-            ranking = validate_input(name, brought, description, ranking)
+            ranking = validate_input(df, name, brought, description, ranking)
         except ValueError as e:
             st.error(str(e))
-            return
-        df = conn.read(ttl=0).dropna(how='all')
-        if (df['Person'] == name).any():
-            st.error(f'Choices already submitted for {name!r}. Please reset data in Google spreadsheet.')
             return
         row = {'Person': name, 'Brought': brought, 'Description': description, 'Ranked Gifts': ranking}
         df = pd.concat([df, pd.DataFrame.from_records([row])])
