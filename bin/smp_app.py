@@ -1,6 +1,5 @@
 import base64
 from collections import Counter
-from functools import reduce
 from pathlib import Path
 import tempfile
 from typing import Any, BinaryIO, Dict, List, NamedTuple
@@ -13,7 +12,7 @@ import streamlit as st
 
 from pysoc.sct.prefs import Profile, Ranking
 from pysoc.sct.sct import SCF_COLLECTION
-from pysoc.sct.smp import GaleShapleyAnimator, aggregate_ranking, gale_shapley_weak, get_rank_signatures, make_reciprocal_suitee_profile, make_popular_suitee_profile
+from pysoc.sct.smp import GaleShapleyAnimator, SMPOptions, aggregate_ranking, gale_shapley_weak, get_rank_signatures
 
 
 version = '0.1'
@@ -60,7 +59,7 @@ def load_table_from_csv(path: str) -> pd.DataFrame:
     for col in ['Person', 'Ranked Gifts']:
         if (col not in cols):
             raise ValueError(f'CSV does not contain column {col!r}')
-    if ('Brought' in df.columns):
+    if 'Brought' in df.columns:
         df['Brought'] = df['Brought'].fillna('')
     return df
 
@@ -133,28 +132,6 @@ def gale_shapley_animator(suitors: List[str], suitees: List[str]) -> GaleShapley
     width = min(11, 0.75 * n)
     height = max(2, 0.55 * width)
     return GaleShapleyAnimator(suitors, suitees, suitor_images = suitor_images, suitee_images = suitee_images, figsize = (width, height), thumbnail_width = 100)
-
-
-class SMPOptions(NamedTuple):
-    rank_suitors: str
-    agg: str = 'borda'
-
-    def rank_popularity(self) -> bool:
-        return (self.rank_suitors != 'Reciprocal')
-
-    def get_suitee_profile(self, suitor_profile: Profile, brought: List[str]) -> Profile:
-        if (self.rank_suitors == 'Popular'):
-            suitees_by_suitor = {}
-            for (suitor, suitee) in zip(suitor_profile.names, brought):
-                suitees_by_suitor[suitor] = suitee
-            return make_popular_suitee_profile(suitor_profile, suitees_by_suitor, agg = self.agg)
-        elif (self.rank_suitors == 'Reciprocal'):
-            return make_reciprocal_suitee_profile(suitor_profile)
-        else:  # reciprocal/popular
-            reciprocal = SMPOptions('Reciprocal', self.agg).get_suitee_profile(suitor_profile, brought)
-            popular = SMPOptions('Popular', self.agg).get_suitee_profile(suitor_profile, brought)
-            rankings = [ranking1.refine(ranking2) for (ranking1, ranking2) in zip(reciprocal, popular)]
-            return Profile(rankings, names = reciprocal.names)
 
 
 class SMPData(NamedTuple):

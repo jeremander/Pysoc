@@ -1,22 +1,24 @@
-from collections import Counter
 import math
-import matplotlib
+from typing import Counter, Literal, NamedTuple, get_args
+
+import matplotlib as mpl
 import matplotlib.animation as animation
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 import pandas as pd
 from PIL import Image, ImageOps
-from typing import Dict, NamedTuple, Tuple
+from tqdm import tqdm
 
 from pysoc.sct.prefs import CardinalRanking, Profile, Ranking, StrictRanking
 from pysoc.sct.sct import borda_count_ranking, kemeny_young
 
+
 # raise size limit for animations
-matplotlib.rcParams['animation.embed_limit'] = 2 ** 31
+mpl.rcParams['animation.embed_limit'] = 2 ** 31
 
 
-def gale_shapley(suitor_prefs: Profile, suitee_prefs: Profile) -> Tuple[nx.Graph, pd.DataFrame]:
+def gale_shapley(suitor_prefs: Profile, suitee_prefs: Profile) -> tuple[nx.Graph, pd.DataFrame]:
     """Gale-Shapley algorithm to find a stable marriage. Input is a pair of Profiles with StrictRankings, one for the suitors, one for the suitees."""
     assert all(isinstance(ranking, StrictRanking) for ranking in suitor_prefs)
     assert all(isinstance(ranking, StrictRanking) for ranking in suitee_prefs)
@@ -63,7 +65,7 @@ def gale_shapley(suitor_prefs: Profile, suitee_prefs: Profile) -> Tuple[nx.Graph
     actions_df = pd.DataFrame(actions, columns = ['action', 'suitor', 'suitee'])
     return (graph, actions_df)
 
-def gale_shapley_weak(suitor_prefs: Profile, suitee_prefs: Profile, verbose: bool = False, random_tiebreak: bool = False) -> Tuple[nx.Graph, pd.DataFrame]:
+def gale_shapley_weak(suitor_prefs: Profile, suitee_prefs: Profile, verbose: bool = False, random_tiebreak: bool = False) -> tuple[nx.Graph, pd.DataFrame]:
     """Gale-Shapley algorithm to find a stable marriage. Input is a pair of Profiles with weak Rankings, one for the suitors, one for the suitees. Also, the number of suitors and suitees does not have to match."""
     assert all(not isinstance(ranking, StrictRanking) for ranking in suitor_prefs)
     assert all(not isinstance(ranking, StrictRanking) for ranking in suitee_prefs)
@@ -101,7 +103,7 @@ def gale_shapley_weak(suitor_prefs: Profile, suitee_prefs: Profile, verbose: boo
                     if (len(candidates) == 1):
                         suitor = candidates[0]
                         break
-                    elif (len(candidates) > 1):
+                    if (len(candidates) > 1):
                         if random_tiebreak:  # break the tie randomly
                             suitor = np.random.choice(candidates)
                         else:  # break the tie interactively
@@ -110,17 +112,16 @@ def gale_shapley_weak(suitor_prefs: Profile, suitee_prefs: Profile, verbose: boo
                                 suitor = input(f'{suitee} received proposals from: {candidate_str}.\nBreak the tie: ')
                                 if (suitor in candidates):
                                     break
-                                else:
-                                    print(f"Invalid value '{suitor}'")
+                                print(f"Invalid value '{suitor}'")
                         break
                 for neighbor in neighbors:  # reject the other neighbors
-                    if (neighbor != suitor):
+                    if neighbor != suitor:
                         if verbose:
                             print(f"{suitee} rejects {neighbor}")
                         graph.remove_edge(neighbor, suitee)
                         actions.append(('reject', neighbor, suitee))
                         suitor_matching[neighbor] = None
-                if (not (suitor_matching[suitor] == suitee)):
+                if not (suitor_matching[suitor] == suitee):
                     actions.append(('keep', suitor, suitee))
                     suitor_matching[suitor] = suitee
                     suitee_matching[suitee] = suitor
@@ -135,17 +136,19 @@ def gale_shapley_weak(suitor_prefs: Profile, suitee_prefs: Profile, verbose: boo
 def num_weak_compositions(n: int, k: int) -> int:
     return 1 if (n == k == 0) else math.comb(n + k - 1, n)
 
-def num_worse_signatures(n: int, signature: Tuple[int, ...]) -> int:
-    if (n == 0):
+def num_worse_signatures(n: int, signature: tuple[int, ...]) -> int:
+    if n == 0:
         return 0
     k = len(signature)
     i0 = signature[0]
     num_sub_signatures = sum(num_weak_compositions(n - i, k - 1) for i in range(i0))
     return num_sub_signatures + num_worse_signatures(n - i0, signature[1:])
 
+
 class RankSignature(NamedTuple):
     n: int  # number of raters
-    signature: Tuple[int, ...]  # number of instances of each rank
+    signature: tuple[int, ...]  # number of instances of each rank
+
     @property
     def happiness_score(self) -> float:
         """Computes percentile of the signature out of all possible signatures, resulting in a score from 0 to 100."""
@@ -153,7 +156,8 @@ class RankSignature(NamedTuple):
         num_worse_sigs = num_worse_signatures(self.n, self.signature)
         return 0.0 if (num_worse_sigs == 0) else (100.0 * (num_worse_sigs / (num_sigs - 1)))
 
-def get_rank_signatures(suitor_profile: Profile, suitee_profile: Profile, graph: nx.Graph) -> Tuple[RankSignature, RankSignature]:
+
+def get_rank_signatures(suitor_profile: Profile, suitee_profile: Profile, graph: nx.Graph) -> tuple[RankSignature, RankSignature]:
     """Gets the rank signature for suitors and suitees, given a matching."""
     suitor_counts, suitee_counts = Counter(), Counter()
     num_suitors, num_suitees = len(suitor_profile), len(suitee_profile)
@@ -170,7 +174,7 @@ def get_rank_signatures(suitor_profile: Profile, suitee_profile: Profile, graph:
 def make_reciprocal_suitee_profile(suitor_profile: Profile) -> Profile:
     """Given a suitor Profile, creates a suitee Profile where they rank suitors by decreasing preference for themselves. This makes the suitees as compliant as possible with their earliest proposals in the Gale-Shapley algorithm."""
     suitors = suitor_profile.names
-    suitees = sorted(list(suitor_profile.universe))
+    suitees = sorted(suitor_profile.universe)
     suitee_rankings = []
     for suitee in suitees:
         suitee_rankings.append(CardinalRanking({suitor : -suitor_profile[suitor].rank(suitee) for suitor in suitors}))
@@ -178,15 +182,14 @@ def make_reciprocal_suitee_profile(suitor_profile: Profile) -> Profile:
 
 def aggregate_ranking(profile: Profile, agg: str = 'borda') -> Ranking:
     """Given a profile and rank aggregation method, returns a Ranking which aggregates the profile."""
-    if (agg == 'borda'):
+    if agg == 'borda':
         return borda_count_ranking(profile)
-    elif (agg == 'kemeny-young'):
+    if agg == 'kemeny-young':
         # TODO: make this a weak ranking?
         return kemeny_young(profile)[0]
-    else:
-        raise ValueError(f'Unknown aggregation method: {agg!r}')
+    raise ValueError(f'Unknown aggregation method: {agg!r}')
 
-def make_popular_suitee_profile(suitor_profile: Profile, suitees_by_suitor: Dict[str, str], agg: str = 'borda') -> Profile:
+def make_popular_suitee_profile(suitor_profile: Profile, suitees_by_suitor: dict[str, str], agg: str = 'borda') -> Profile:
     """First rank the suitees by popularity using rank aggregation then rank the suitors by their corresponding suitee (each suitor "provided" a suitee)."""
     suitor_ranking = aggregate_ranking(suitor_profile, agg = agg)
     suitors_by_suitee = {}
@@ -198,7 +201,7 @@ def make_popular_suitee_profile(suitor_profile: Profile, suitees_by_suitor: Dict
     suitee_rankings = []
     for _ in suitees:
         suitee_rankings.append(suitee_ranking)
-    return Profile(suitee_rankings, names = suitees)
+    return Profile(suitee_rankings, names=suitees)
 
 def make_border(img: Image, border_frac: float = 0.10) -> Image:
     size = img.size
@@ -212,7 +215,9 @@ def make_thumbnail(img: Image, width: int = 200) -> Image:
     ratio = width / size[0]
     return img.resize((int(size[0] * ratio), int(size[1] * ratio)), Image.ANTIALIAS)
 
+
 class GaleShapleyAnimator:
+
     def __init__(self, suitors, suitees, suitor_images = dict(), suitee_images = dict(), figsize = None, thumbnail_width: int = 200):
         self.suitors = suitors
         self.suitees = suitees
@@ -226,6 +231,7 @@ class GaleShapleyAnimator:
         self.height = max(2, self.N // 2)
         self.pos = {node : (i, self.height) if (i < num_suitors) else (i - num_suitors, 0) for (i, node) in enumerate(self.nodes)}
         self.node_colors = {node : '#3BB9FF' if (i < num_suitors) else '#F778A1' for (i, node) in enumerate(self.nodes)}
+
     def init_axis(self):
         (self.fig, self.ax) = plt.subplots(figsize = self.figsize)
         plt.subplots_adjust(left = 0.0, right = 1.0, top = 1.0, bottom = 0.0)
@@ -234,6 +240,7 @@ class GaleShapleyAnimator:
         self.ax.set_ylim((-0.5, self.height + 0.5))
         self.ax.axis('off')
         self.ax.set_aspect('equal')
+
     def plot_nodes(self):
         def gen_nodes():
             for suitor in self.suitors:
@@ -251,6 +258,7 @@ class GaleShapleyAnimator:
                 circ = plt.Circle(p, 0.35, color = self.node_colors[node])
                 self.ax.add_artist(circ)
                 self.ax.text(*p, node, ha = 'center', va = 'center', fontweight = 'bold', fontsize = 12)
+
     def animate(self, anim_df, squash: float = 0.8):
         """Animates the Gale-Shapley algorithm. Takes list of suitors, suitees, and animation actions returned by the gale_shapley function."""
         anim_list = [(action, (suitor, suitee)) for (_, action, suitor, suitee) in anim_df.itertuples()]
@@ -259,10 +267,12 @@ class GaleShapleyAnimator:
         def init():
             self.plot_nodes()
             return self.ax.artists
+        num_frames = len(anim_list) + 1
+        progressbar = tqdm(total=num_frames)
         def update(frame):
-            print(f'frame = {frame}')
-            if (frame > 0):
-                nonlocal lines
+            nonlocal lines, progressbar
+            progressbar.update(1)
+            if frame > 0:
                 (flag, edge) = anim_list[frame - 1]
                 xdata, ydata = zip(self.pos[edge[0]], self.pos[edge[1]])
                 # squash the lines by the given factor
@@ -273,6 +283,7 @@ class GaleShapleyAnimator:
                     for (i, line) in enumerate(lines):
                         if (tuple(line.get_xdata()) == xdata) and (tuple(line.get_ydata()) == ydata):
                             return i
+                    return None
                 if (flag == 'add'):
                     lines += self.ax.plot(xdata, ydata, linewidth = 2, color = 'black', linestyle = 'dashed')
                 elif (flag == 'delete'):
@@ -289,7 +300,38 @@ class GaleShapleyAnimator:
                     lines[i].set_color('green')
                     lines[i].set_linestyle('solid')
                 else:
-                    raise ValueError("Invalid flag: '{}'".format(flag))
+                    raise ValueError(f'Invalid flag: {flag!r}')
             return lines
-        anim = animation.FuncAnimation(self.fig, update, init_func = init, frames = len(anim_list) + 1, interval = 1000, blit = True)
-        return anim
+        return animation.FuncAnimation(self.fig, update, init_func=init, frames=num_frames, interval=1000, blit=True)
+
+
+SuitorRankingMode = Literal[
+    'reciprocal',  # rank by decreasing preference for themselves
+    'popular',  # rank suitors by popularity of item each suitor brought, using "Brought" column of CSV
+    'reciprocal-popular'  # rank by reciprocal criterion, then breaks ties with popularity
+]
+
+
+class SMPOptions(NamedTuple):
+    rank_suitors: SuitorRankingMode
+    agg: str = 'borda'
+
+    def __post_init__(self) -> None:
+        assert self.rank_suitors in get_args(SuitorRankingMode), 'invalid suitor ranking mode'
+
+    def rank_popularity(self) -> bool:
+        return (self.rank_suitors != 'reciprocal')
+
+    def get_suitee_profile(self, suitor_profile: Profile, brought: list[str]) -> Profile:
+        if self.rank_suitors == 'popular':
+            suitees_by_suitor = {}
+            for (suitor, suitee) in zip(suitor_profile.names, brought):
+                suitees_by_suitor[suitor] = suitee
+            return make_popular_suitee_profile(suitor_profile, suitees_by_suitor, agg=self.agg)
+        elif self.rank_suitors == 'reciprocal':
+            return make_reciprocal_suitee_profile(suitor_profile)
+        # reciprocal/popular
+        reciprocal = SMPOptions('reciprocal', self.agg).get_suitee_profile(suitor_profile, brought)
+        popular = SMPOptions('popular', self.agg).get_suitee_profile(suitor_profile, brought)
+        rankings = [ranking1.refine(ranking2) for (ranking1, ranking2) in zip(reciprocal, popular)]
+        return Profile(rankings, names=reciprocal.names)
