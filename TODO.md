@@ -7,8 +7,8 @@
 
 ## SMP app
 
-- Input Google Sheets link
 - In-browser progress bar
+- Improve API for directly loading profile from Google Sheets (don't go by way of streamlit)
 
 ## SMP
 

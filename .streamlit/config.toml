@@ -1,6 +1,9 @@
 [global]
 showWarningOnDirectExecution = false
 
+[server]
+enableXsrfProtection = false
+
 [theme]
 base="light"
 primaryColor="#27a86d"

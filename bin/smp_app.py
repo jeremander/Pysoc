@@ -1,5 +1,6 @@
 import base64
 from collections import Counter
+from contextlib import contextmanager
 from pathlib import Path
 import tempfile
 from typing import Any, BinaryIO, NamedTuple
@@ -9,6 +10,7 @@ import pandas as pd
 import PIL.Image
 from st_aggrid import AgGrid
 import streamlit as st
+from streamlit_gsheets import GSheetsConnection
 
 from pysoc.sct.prefs import Profile, Ranking
 from pysoc.sct.sct import SCF_COLLECTION
@@ -36,6 +38,13 @@ st.set_page_config(page_title='Gift Matching', page_icon='🎁', layout='wide')
 ####################
 # HELPER FUNCTIONS #
 ####################
+
+@contextmanager
+def st_catch_errors(*errtypes):
+    try:
+        yield
+    except errtypes as e:
+        st.error(str(e))
 
 def normalize(s: str) -> str:
     return s.lower().replace('_', ' ')
@@ -272,16 +281,22 @@ class SMPData(NamedTuple):
 def main() -> None:
     render_title()
     with st.expander('Upload files (optional)'):
-        csv_file = st.file_uploader('Upload CSV of rankings', type = ['csv'], on_change = initialize_state)
-        st.session_state.person_pics = st.file_uploader('Upload pics of people', type = ['jpg', 'png'], accept_multiple_files = True, on_change = initialize_state)
-        st.session_state.gift_pics = st.file_uploader('Upload pics of gifts', type = ['jpg', 'png'], accept_multiple_files = True, on_change = initialize_state)
-        if (csv_file is not None):
-            try:
-                # st.session_state.table_data = load_table_from_csv(csv_file, 'Ranked Gifts')
+        gsheet_link = st.text_input('Link to Google Sheet')
+        csv_file = st.file_uploader('Upload CSV of rankings', type=['csv'], on_change=initialize_state)
+        st.session_state.person_pics = st.file_uploader('Upload pics of people', type=['jpg', 'png'], accept_multiple_files=True, on_change=initialize_state)
+        st.session_state.gift_pics = st.file_uploader('Upload pics of gifts', type=['jpg', 'png'], accept_multiple_files=True, on_change=initialize_state)
+        with st_catch_errors(ValueError):
+            if csv_file is not None:
                 st.session_state.table_data = load_table_from_csv(csv_file)
-            except ValueError as e:
-                st.error(e)
-    have_csv = 'table_data' in st.session_state
+                if gsheet_link:
+                    raise ValueError('Cannot provide both Google Sheet link and uploaded CSV file')
+            elif gsheet_link:
+                try:
+                    conn = st.connection('gsheets', type=GSheetsConnection)
+                    st.session_state.table_data = conn.read(spreadsheet=gsheet_link, ttl=0).dropna(how='all')
+                except Exception as e:
+                    raise ValueError('Could not locate spreadsheet with the provided URL') from e
+        have_csv = 'table_data' in st.session_state
     if have_csv:
         n = len(st.session_state.table_data)
     else:
@@ -293,14 +308,12 @@ def main() -> None:
     options = SMPOptions(rank_people)
     st.download_button('Download CSV', table_data.to_csv(index=False), file_name = 'rankings.csv', mime = 'text/csv')
     if get_state('form_submitted', False):
-        try:
+        with st_catch_errors(ValueError):
             data = SMPData.from_form_data(table_data, options)
             data.render_preferences()
             data.render_rcv()
             data.render_matching()
             data.render_animation()
-        except ValueError as e:
-            st.error(f'Invalid input: {e}')
 
 # run the app
 main()
