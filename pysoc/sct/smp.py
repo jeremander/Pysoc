@@ -17,6 +17,8 @@ from pysoc.sct.sct import borda_count_ranking, kemeny_young
 # raise size limit for animations
 mpl.rcParams['animation.embed_limit'] = 2 ** 31
 
+_ST_PROGRESSBAR = None
+
 
 def gale_shapley(suitor_prefs: Profile, suitee_prefs: Profile) -> tuple[nx.Graph, pd.DataFrame]:
     """Gale-Shapley algorithm to find a stable marriage. Input is a pair of Profiles with StrictRankings, one for the suitors, one for the suitees."""
@@ -269,10 +271,14 @@ class GaleShapleyAnimator:
             self.plot_nodes()
             return self.ax.artists
         num_frames = len(anim_list) + 1
-        progressbar = tqdm(total=num_frames)
+        msg = 'Rendering animation'
+        progressbar = tqdm(total=num_frames, desc=msg)
         def update(frame):
             nonlocal lines, progressbar
             progressbar.update(1)
+            if _ST_PROGRESSBAR is not None:
+                # if streamlit app is active, show a progress bar in the browser
+                _ST_PROGRESSBAR.progress((frame + 1) / num_frames, f'{msg}...')
             if frame > 0:
                 (flag, edge) = anim_list[frame - 1]
                 xdata, ydata = zip(self.pos[edge[0]], self.pos[edge[1]])

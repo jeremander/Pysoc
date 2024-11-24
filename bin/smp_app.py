@@ -14,6 +14,7 @@ from streamlit_gsheets import GSheetsConnection
 
 from pysoc.sct.prefs import Profile, Ranking
 from pysoc.sct.sct import SCF_COLLECTION
+import pysoc.sct.smp
 from pysoc.sct.smp import GaleShapleyAnimator, SMPOptions, aggregate_ranking, gale_shapley_weak, get_rank_signatures
 
 
@@ -246,31 +247,35 @@ class SMPData(NamedTuple):
         def clicked_show_animation():
             set_state('form_submitted', True)
             set_state('show_animation', True)
-        st.button('Show Animation', on_click = clicked_show_animation)
+            set_state('show_animation_link', False)
+        st.button('Show Animation', on_click=clicked_show_animation)
+        # TODO: cache animation JS
         if get_state('show_animation', False):
             animator = gale_shapley_animator(self.suitors, self.suitees)
+            pysoc.sct.smp._ST_PROGRESSBAR = st.progress(0, text='Rendering...')
             animation = animator.animate(self.anim_actions)
-            with st.spinner('Generating animation...'):
-                anim_height = 100 + 100 * animator.figsize[1]
-                st.components.v1.html(animation.to_jshtml(), height=anim_height)
+            anim_height = 100 + 100 * animator.figsize[1]
+            st.components.v1.html(animation.to_jshtml(), height=anim_height)
 
     def render_download_animation(self) -> None:
         def clicked_download_animation():
             set_state('form_submitted', True)
+            set_state('show_animation', False)
             set_state('show_animation_link', True)
         st.button('Download Animation', on_click=clicked_download_animation)
         if get_state('show_animation_link', False):
             filename = 'animation.mp4'
             animator = gale_shapley_animator(self.suitors, self.suitees)
+            pysoc.sct.smp._ST_PROGRESSBAR = st.progress(0, text='Rendering...')
             animation = animator.animate(self.anim_actions, squash=SQUASH)
-            with st.spinner('Generating animation...'):
-                with tempfile.NamedTemporaryFile('wb+', suffix='.mp4') as tf:
-                    animation.save(tf.name, writer = 'ffmpeg', dpi=DPI, fps=FPS)
-                    tf.flush()
-                    tf.seek(0)
-                    data = tf.read()
-                    b64 = base64.b64encode(data).decode()
-                    link = f'<a href="data:application/octet-stream;base64,{b64}" download="{filename}">{filename}</a>'
+            # TODO: cache animation data (serialized)
+            with tempfile.NamedTemporaryFile('wb+', suffix='.mp4') as tf:
+                animation.save(tf.name, writer = 'ffmpeg', dpi=DPI, fps=FPS)
+                tf.flush()
+                tf.seek(0)
+                data = tf.read()
+                b64 = base64.b64encode(data).decode()
+                link = f'<a href="data:application/octet-stream;base64,{b64}" download="{filename}">{filename}</a>'
             st.markdown(link, unsafe_allow_html = True)
 
     def render_animation(self) -> None:
