@@ -669,10 +669,14 @@ class Profile(object):
                 f.write('\n')
 
     @classmethod
-    def from_csv(cls, filename, rank_column = 'Ranking'):
-        df = pd.read_csv(filename, index_col = 0, dtype = str).fillna('')
+    def from_dataframe(cls, df, rank_column='Ranking'):
         rankings = [Ranking.from_string(s) for s in df[rank_column]]
-        return cls(rankings, names = list(df.index))
+        return cls(rankings, names=list(df.index))
+
+    @classmethod
+    def from_csv(cls, filename, rank_column='Ranking'):
+        df = pd.read_csv(filename, index_col=0, dtype=str).fillna('')
+        return cls.from_dataframe(df, rank_column=rank_column)
 
     @classmethod
     def random(cls, items, n = None, names = None, indifference_prob = 0.0):

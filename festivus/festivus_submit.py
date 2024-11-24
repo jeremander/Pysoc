@@ -13,7 +13,7 @@ SELF_RANKED_LAST = True
 
 st.set_page_config(page_title='Festivus!', page_icon='🎁')
 
-conn = st.connection('gsheets', type = GSheetsConnection)
+conn = st.connection('gsheets', type=GSheetsConnection)
 
 
 def normalize_name(name: str) -> str:

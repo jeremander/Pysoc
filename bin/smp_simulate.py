@@ -2,22 +2,40 @@
 """Creates an animation of the Gale-Shapley algorithm given preference data for suitors and suitees."""
 
 import argparse
+import logging
+from pathlib import Path
 from typing import get_args
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from pysoc.sct.prefs import CardinalRanking, Profile
+from pysoc.sct.prefs import Profile
 from pysoc.sct.sct import SCF_COLLECTION
 from pysoc.sct.smp import GaleShapleyAnimator, SMPOptions, SuitorRankingMode, gale_shapley_weak
 
 
-def read_data(filename):
+def load_data(path):
+    if Path(path).is_file():
+        df = pd.read_csv(args.suitors, index_col=0, dtype=str).fillna('')
+    else:
+        if path.startswith('http'):  # link to Google Sheets
+            # TODO: streamlit emits warnings about "missing ScriptRunContext".
+            # It would be nice to connect to the spreadsheet directly without streamlit,
+            # but this would require obtaining the same "secrets" metadata that streamlit_gsheets uses.
+            import streamlit as st
+            from streamlit_gsheets import GSheetsConnection
+            conn = st.connection('gsheets', type=GSheetsConnection)
+            df = conn.read(ttl=0).dropna(how='all').set_index('Person')
+        else:
+            raise ValueError(f'could not locate {path}')
+    return df
+
+
+def get_profile_and_img_paths(df):
     # TODO: base path for default image paths
-    """Given a filename for a CSV indexed by names, with numeric columns for the rankings (semicolon-delimiting ties), and an optional 'Image' column containing paths to images, returns a Profile containing the weak preferences, and also a dictionary from names to image paths. If no numeric columns are provided, returns None instead of the Profiles."""
-    df = pd.read_csv(filename, index_col=0)
-    profile = Profile.from_csv(filename, 'Ranked Gifts')
+    """Given a DataFrame indexed by names, with numeric columns for the rankings (semicolon-delimiting ties), and an optional 'Image' column containing paths to images, returns a Profile containing the weak preferences, and also a dictionary from names to image paths. If no numeric columns are provided, returns None instead of the Profiles."""
+    profile = Profile.from_dataframe(df, 'Ranked Gifts')
     names = list(df.index)
     # handle image paths
     if 'Image' in df.columns:
@@ -30,7 +48,7 @@ def read_data(filename):
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('suitors', help = 'path to suitor CSV')
+    parser.add_argument('suitors', help = 'path to suitor CSV, or link to Google Sheets')
     parser.add_argument('suitees', nargs = '?', help = 'path to suitee CSV')
     parser.add_argument('--rank-suitors', choices = get_args(SuitorRankingMode), default = 'reciprocal-popular', help = 'how to rank suitors based on brought gifts when the ranking is not provided')
     parser.add_argument('--random-tiebreak', action = 'store_true', help = 'break ties randomly (instead of interactively)')
@@ -47,16 +65,17 @@ if __name__ == '__main__':
 
     # Read data
     print(f'Reading suitor data from {args.suitors}...')
-    (suitor_prefs, suitor_images) = read_data(args.suitors)
+    suitor_df = load_data(args.suitors)
+
+    (suitor_prefs, suitor_images) = get_profile_and_img_paths(suitor_df)
 
     if args.suitees is None:
         options = SMPOptions(args.rank_suitors, args.agg)
-        df = pd.read_csv(args.suitors, index_col=0, dtype=str).fillna('')
-        suitee_prefs = options.get_suitee_profile(suitor_prefs, list(df['Brought']))
+        suitee_prefs = options.get_suitee_profile(suitor_prefs, list(suitor_df['Brought']))
         suitee_images = {}
     else:
         print(f'Reading suitee data from {args.suitees}...')
-        (suitee_prefs, suitee_images) = read_data(args.suitees)
+        (suitee_prefs, suitee_images) = get_profile_and_img_paths(load_data(args.suitees))
 
     suitors = suitor_prefs.names
     num_suitors = len(suitors)
@@ -108,4 +127,4 @@ if __name__ == '__main__':
     # anim.save(args.outfile, writer = 'ffmpeg', dpi = args.dpi, fps = 30, savefig_kwargs = {'dpi' : args.dpi})
     anim.save(args.outfile, writer='ffmpeg', dpi=args.dpi, fps=30)
 
-    print("\nDONE!\n")
+    print('\nDONE!\n')
