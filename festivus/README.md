@@ -30,6 +30,10 @@ This lets you upload a CSV file of gift rankings, and it will produce an animate
 1. Gather all of the gifts in one place. Label them with single-letter codes.
 2. Share the submission app [link][Submission app] with all participants.
 3. All participants submit their rankings.
+4. Download spreadsheet from Google Sheets as CSV.
+5. Upload CSV file to the [SMP app].
+6. Download animated video as MP4.
+7. Present the animation, along with "most popular gift" winner, etc.
 
 <!-- Links -->
 

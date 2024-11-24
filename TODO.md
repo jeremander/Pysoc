@@ -4,7 +4,6 @@
 - Migrate to `uv`
 
 - TODOs from 2023:
-    - Trailing whitespace normalize
     - Test on web app (error: invalid extension mp4)
     - Upload photo when submitting?
     - Unicode normalize to remove diacritics?

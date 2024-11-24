@@ -11,10 +11,14 @@ from pysoc.sct.prefs import Ranking
 MIN_CHOICES = 5
 SELF_RANKED_LAST = True
 
-st.set_page_config(page_title = 'Festivus!', page_icon = '🎁')
+st.set_page_config(page_title='Festivus!', page_icon='🎁')
 
 conn = st.connection('gsheets', type = GSheetsConnection)
 
+
+def normalize_name(name: str) -> str:
+    """Normalizes a name."""
+    return name.strip()
 
 def validate_input(name: str, brought: str, description: str, ranking: str) -> str:
     """Validates user input fields.
@@ -52,7 +56,7 @@ def validate_input(name: str, brought: str, description: str, ranking: str) -> s
 def main() -> None:
     year = datetime.now().year
     st.header(f'Festivus {year} Gift Ranking')
-    name = st.text_input('What is your name?', key = 'name')
+    name = normalize_name(st.text_input('What is your name?', key='name'))
     brought = st.text_input('What is the letter code of the gift you brought?')
     description = st.text_input('Give a brief description of your gift.')
     st.write('')
@@ -68,13 +72,13 @@ def main() -> None:
     # st.caption('<br>'.join(caption_lines), unsafe_allow_html = True)
     ranking = st.text_input('Gift ranking:')
     st.write('')
-    if st.button('Submit', type = 'primary'):
+    if st.button('Submit', type='primary'):
         try:
             ranking = validate_input(name, brought, description, ranking)
         except ValueError as e:
             st.error(str(e))
             return
-        df = conn.read(ttl = 0).dropna(how = 'all')
+        df = conn.read(ttl=0).dropna(how='all')
         if (df['Person'] == name).any():
             st.error(f'Choices already submitted for {name!r}. Please reset data in Google spreadsheet.')
             return
@@ -82,7 +86,7 @@ def main() -> None:
         df = pd.concat([df, pd.DataFrame.from_records([row])])
         with st.spinner('Submitting data...'):
             # st.dataframe(df)
-            conn.update(data = df)
+            conn.update(data=df)
         st.write('Your choices have been submitted! 🎉')
 
 main()
