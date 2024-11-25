@@ -1,0 +1,10 @@
+matplotlib
+networkx
+numpy
+pandas
+Pillow
+scipy
+st-gsheets-connection
+streamlit
+streamlit-aggrid
+tqdm
