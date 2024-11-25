@@ -92,7 +92,6 @@ def initialize_state() -> None:
     # set_state('show_animation', False)
 
 def render_title() -> None:
-    st.warning('This app is in beta. It may not work properly on mobile browsers.')
     col1, _, col2 = st.columns([6, 1, 8])
     col1.title('Gift Matching Algorithm')
     logo_path = Path(__file__).parents[1] / 'app_logo' / 'logo.jpg'
