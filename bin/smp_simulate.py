@@ -2,7 +2,6 @@
 """Creates an animation of the Gale-Shapley algorithm given preference data for suitors and suitees."""
 
 import argparse
-import logging
 from pathlib import Path
 from typing import get_args
 

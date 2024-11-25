@@ -7,9 +7,10 @@ import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 import pandas as pd
-from PIL import Image, ImageOps
+from PIL import Image
 from tqdm import tqdm
 
+from pysoc.img_util import THUMBNAIL_WIDTH, make_thumbnail
 from pysoc.sct.prefs import CardinalRanking, Profile, Ranking, StrictRanking
 from pysoc.sct.sct import borda_count_ranking, kemeny_young
 
@@ -205,23 +206,10 @@ def make_popular_suitee_profile(suitor_profile: Profile, suitees_by_suitor: dict
         suitee_rankings.append(suitee_ranking)
     return Profile(suitee_rankings, names=suitees)
 
-def make_border(img: Image, border_frac: float = 0.10) -> Image:
-    size = img.size
-    c = 1 + 2 * border_frac
-    new_size = (int(c * size[0]), int(c * size[1]))
-    border = min((new_size[0] - size[0]) // 2, (new_size[1] - size[1]) // 2)
-    return ImageOps.expand(img, border, fill = 'white')
-
-def make_thumbnail(img: Image, width: int = 200) -> Image:
-    size = img.size
-    ratio = width / size[0]
-    new_size = (int(size[0] * ratio), int(size[1] * ratio))
-    return img.resize(new_size)
-
 
 class GaleShapleyAnimator:
 
-    def __init__(self, suitors, suitees, suitor_images = {}, suitee_images = {}, figsize = None, thumbnail_width: int = 200):
+    def __init__(self, suitors, suitees, suitor_images = {}, suitee_images = {}, figsize = None, thumbnail_width: int = THUMBNAIL_WIDTH):
         self.suitors = suitors
         self.suitees = suitees
         self.suitor_images = suitor_images
@@ -255,12 +243,12 @@ class GaleShapleyAnimator:
             if img_file:  # use image
                 img = Image.open(img_file)
                 # img = make_border(img, 0.8)
-                img = make_thumbnail(img, width = self.thumbnail_width)
-                self.ax.imshow(img, origin = 'upper', extent = [p[0] - 0.4, p[0] + 0.4, p[1] - 0.4, p[1] + 0.4])
+                img = make_thumbnail(img, width=self.thumbnail_width)
+                self.ax.imshow(img, origin='upper', extent=[p[0] - 0.4, p[0] + 0.4, p[1] - 0.4, p[1] + 0.4])
             else:  # use the name
-                circ = plt.Circle(p, 0.35, color = self.node_colors[node])
+                circ = plt.Circle(p, 0.35, color=self.node_colors[node])
                 self.ax.add_artist(circ)
-                self.ax.text(*p, node, ha = 'center', va = 'center', fontweight = 'bold', fontsize = 12)
+                self.ax.text(*p, node, ha='center', va='center', fontweight='bold', fontsize = 12)
 
     def animate(self, anim_df, squash: float = 0.8):
         """Animates the Gale-Shapley algorithm. Takes list of suitors, suitees, and animation actions returned by the gale_shapley function."""

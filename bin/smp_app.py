@@ -1,6 +1,7 @@
 import base64
 from collections import Counter
 from contextlib import contextmanager
+from io import BytesIO
 from pathlib import Path
 import tempfile
 from typing import Any, BinaryIO, NamedTuple
@@ -26,6 +27,13 @@ SQUASH = 0.9
 THUMBNAIL_WIDTH = 100
 DPI = 400
 FPS = 2
+
+PERSON_COL = 'Person'
+GIFT_COL = 'Gift'
+PERSON_IMG_COL = 'Person Image'
+GIFT_IMG_COL = 'Gift Image'
+BROUGHT_COL = 'Brought'
+RANKED_GIFTS_COL = 'Ranked Gifts'
 
 RANKING_DESCRIPTIONS = {
     'Reciprocal/popular': 'For each gift, rank people by strength of preference for that gift, then by gift popularity to break ties.',
@@ -59,20 +67,18 @@ def table_height(num_rows: int) -> int:
 def initialize_table(n: int, rank: bool = True) -> pd.DataFrame:
     people = [f'Person {i}' for i in range(1, n + 1)]
     empty_col = [''] * n
-    d = {'Person': people}
+    d = {PERSON_COL: people}
     if rank:
-        d['Brought'] = empty_col
-    d['Ranked Gifts'] = empty_col
+        d[BROUGHT_COL] = empty_col
+    d[RANKED_GIFTS_COL] = empty_col
     return pd.DataFrame(d)
 
 def load_table_from_csv(path: str) -> pd.DataFrame:
-    df = pd.read_csv(path)
+    df = pd.read_csv(path).fillna('')
     cols = list(df.columns)
-    for col in ['Person', 'Ranked Gifts']:
-        if (col not in cols):
+    for col in [PERSON_COL, RANKED_GIFTS_COL]:
+        if col not in cols:
             raise ValueError(f'CSV does not contain column {col!r}')
-    if 'Brought' in df.columns:
-        df['Brought'] = df['Brought'].fillna('')
     return df
 
 def get_state(key: str, default: Any) -> Any:
@@ -111,10 +117,10 @@ def render_ranking_form(n: int, should_rank_people: bool, have_csv: bool) -> pd.
         ranking_help = 'Provide each person\'s full ranking of gifts from favorite to least favorite, separated by commas (for gifts whose rankings are tied, you may separate by semicolons).'
         if should_rank_people:
             ranking_help += '<br>Additionally, please provide the gift brought by each person.'
-        st.caption(ranking_help, unsafe_allow_html = True)
-        df_template = st.session_state.table_data if have_csv else initialize_table(n, rank = should_rank_people)
-        response = AgGrid(df_template, height = table_height(n), editable = True, fit_columns_on_grid_load = True)
-        st.form_submit_button(on_click = submit_form)
+        st.caption(ranking_help, unsafe_allow_html=True)
+        df_template = st.session_state.table_data if have_csv else initialize_table(n, rank=should_rank_people)
+        response = AgGrid(df_template, height=table_height(n), editable=True, fit_columns_on_grid_load=True)
+        st.form_submit_button(on_click=submit_form)
     return response['data']
 
 def get_winners(profile: Profile) -> pd.DataFrame:
@@ -125,21 +131,28 @@ def get_winners(profile: Profile) -> pd.DataFrame:
         winners.append(', '.join(scf(profile)))
     return pd.DataFrame({'scheme': scfs, 'winners': winners})
 
-def get_images(names: list[str], files: list[st.runtime.uploaded_file_manager.UploadedFile]) -> dict[str, BinaryIO]:
+def get_images(names: list[str], files_by_name: dict[str, st.runtime.uploaded_file_manager.UploadedFile]) -> dict[str, BinaryIO]:
     d = {}
     names_by_key = {normalize(name): name for name in names}
-    for f in files:
-        key = normalize_path(f.name)
-        if (key in names_by_key):
+    for (key, f) in files_by_name.items():
+        if key in names_by_key:
             d[names_by_key[key]] = f
-    if (bool(d) and (len(d) != len(names))):  # warn about missing images
+    if bool(d) and (len(d) != len(names)):  # warn about missing images
         missing_names = ', '.join([name for name in names if (name not in d)])
         st.warning(f'Warning: Missing image files for {missing_names}')
     return d
 
+def get_images_from_df(df: pd.DataFrame) -> dict[str, dict[str, BinaryIO]]:
+    d = {'person': {}, 'gift': {}}
+    if PERSON_IMG_COL in df.columns:
+        d['person'] = {normalize(person): BytesIO(base64.b64decode(s)) for (person, s) in zip(df[PERSON_COL], df[PERSON_IMG_COL]) if s}
+    if (BROUGHT_COL in df.columns) and (GIFT_IMG_COL in df.columns):
+        d['gift'] = {normalize(gift): BytesIO(base64.b64decode(s)) for (gift, s) in zip(df[BROUGHT_COL], df[GIFT_IMG_COL]) if s}
+    return d
+
 def gale_shapley_animator(suitors: list[str], suitees: list[str]) -> GaleShapleyAnimator:
-    suitor_images = get_images(suitors, get_state('person_pics', []))
-    suitee_images = get_images(suitees, get_state('gift_pics', []))
+    suitor_images = get_images(suitors, get_state('person_images', {}))
+    suitee_images = get_images(suitees, get_state('gift_images', {}))
     n = len(suitors)
     width = min(11, 0.75 * n)
     height = max(2, 0.55 * width)
@@ -160,10 +173,10 @@ class SMPData(NamedTuple):
 
     @classmethod
     def from_form_data(cls, df: pd.DataFrame, options: SMPOptions) -> 'SMPData':
-        suitors = list(df['Person'])
+        suitors = list(df[PERSON_COL])
         num_suitors = len(suitors)
         rankings = []
-        for (i, s) in enumerate(df['Ranked Gifts']):
+        for (i, s) in enumerate(df[RANKED_GIFTS_COL]):
             suitor = suitors[i]
             try:
                 if not s:
@@ -171,12 +184,12 @@ class SMPData(NamedTuple):
                 ranking = Ranking.from_string(s)
             except ValueError as e:
                 raise ValueError(f'Ranking for {suitor}: {e}') from None
-        rankings = [Ranking.from_string(s) for s in df['Ranked Gifts']]
-        brought_ctr = Counter(df['Brought'])
+        rankings = [Ranking.from_string(s) for s in df[RANKED_GIFTS_COL]]
+        brought_ctr = Counter(df[BROUGHT_COL])
         for (gift, ct) in brought_ctr.items():
             if (ct > 1):
                 raise ValueError(f'Gift {gift} was listed as brought by more than one person.')
-        brought = set(df['Brought'])
+        brought = set(df[BROUGHT_COL])
         assert len(brought) == num_suitors
         for (i, ranking) in enumerate(rankings):
             suitor = suitors[i]
@@ -184,7 +197,7 @@ class SMPData(NamedTuple):
                 if (suitee not in brought):
                     raise ValueError(f'Gift {suitee} (listed by {suitor}) not found among list of gifts brought.')
             num_suitees = len(ranking.universe)
-            if (num_suitees < num_suitors):
+            if num_suitees < num_suitors:
                 # put any missing gifts at the end of each ranking, tied
                 tier = sorted(brought.difference(ranking.universe))
                 rankings[i] = Ranking(ranking.items + [tier])
@@ -195,15 +208,15 @@ class SMPData(NamedTuple):
             for suitee in suitees:
                 if (suitee not in brought):
                     raise ValueError(f'Must indicate which person brought {suitee!r}')
-            for (suitor, suitee) in zip(df['Person'], df['Brought']):
+            for (suitor, suitee) in zip(df[PERSON_COL], df[BROUGHT_COL]):
                 if (suitee not in suitees):
                     raise ValueError(f'Invalid brought item for {suitor}: {suitee!r}')
-        suitee_profile = options.get_suitee_profile(suitor_profile, list(df['Brought']))
+        suitee_profile = options.get_suitee_profile(suitor_profile, list(df[BROUGHT_COL]))
         suitor_winners = get_winners(suitee_profile)
         suitee_winners = get_winners(suitor_profile)
         (graph, anim_actions) = gale_shapley_weak(suitor_profile, suitee_profile, random_tiebreak=True)
         sort_key = lambda s: [suitors.index(i) for i in s]
-        matches = pd.DataFrame(graph.edges, columns = ['Person', 'Gift']).sort_values(by='Person', key=sort_key)
+        matches = pd.DataFrame(graph.edges, columns=[PERSON_COL, GIFT_COL]).sort_values(by=PERSON_COL, key=sort_key)
         return SMPData(options, suitors, suitees, suitor_profile, suitee_profile, suitor_winners, suitee_winners, graph, anim_actions, matches)
 
     @property
@@ -213,13 +226,13 @@ class SMPData(NamedTuple):
     def render_preferences(self) -> None:
         (col1, col2) = st.columns((1, 1))
         col1.markdown('__Gift Rankings__')
-        suitor_profile = Profile([ranking.get_ranking() for ranking in self.suitor_profile], names = self.suitor_profile.names)
+        suitor_profile = Profile([ranking.get_ranking() for ranking in self.suitor_profile], names=self.suitor_profile.names)
         suitor_df = suitor_profile.to_pandas()
-        col1.dataframe(suitor_df, height = table_height(len(suitor_df)))
+        col1.dataframe(suitor_df, height=table_height(len(suitor_df)))
         col2.markdown('__Person Rankings__')
-        suitee_profile = Profile([ranking.get_ranking() for ranking in self.suitee_profile], names = self.suitee_profile.names)
+        suitee_profile = Profile([ranking.get_ranking() for ranking in self.suitee_profile], names=self.suitee_profile.names)
         suitee_df = suitee_profile.to_pandas()
-        col2.dataframe(suitee_df, height = table_height(len(suitee_df)))
+        col2.dataframe(suitee_df, height=table_height(len(suitee_df)))
 
     def render_rcv(self) -> None:
         with st.expander('Ranked Choice Voting'):
@@ -288,8 +301,10 @@ def main() -> None:
     with st.expander('Upload files (optional)'):
         gsheet_link = st.text_input('Link to Google Sheet')
         csv_file = st.file_uploader('Upload CSV of rankings', type=['csv'], on_change=initialize_state)
-        st.session_state.person_pics = st.file_uploader('Upload pics of people', type=['jpg', 'png'], accept_multiple_files=True, on_change=initialize_state)
-        st.session_state.gift_pics = st.file_uploader('Upload pics of gifts', type=['jpg', 'png'], accept_multiple_files=True, on_change=initialize_state)
+        person_images = st.file_uploader('Upload pics of people', type=['jpg', 'png'], accept_multiple_files=True, on_change=initialize_state)
+        st.session_state.person_images = {normalize_path(f.name): f for f in person_images}
+        gift_images = st.file_uploader('Upload pics of gifts', type=['jpg', 'png'], accept_multiple_files=True, on_change=initialize_state)
+        st.session_state.gift_images = {normalize_path(f.name): f for f in gift_images}
         with st_catch_errors(ValueError):
             if csv_file is not None:
                 st.session_state.table_data = load_table_from_csv(csv_file)
@@ -298,12 +313,17 @@ def main() -> None:
             elif gsheet_link:
                 try:
                     conn = st.connection('gsheets', type=GSheetsConnection)
-                    st.session_state.table_data = conn.read(spreadsheet=gsheet_link, ttl=0).dropna(how='all')
+                    st.session_state.table_data = conn.read(spreadsheet=gsheet_link, ttl=0).dropna(how='all').fillna('')
                 except Exception as e:
                     raise ValueError('Could not locate spreadsheet with the provided URL') from e
         have_csv = 'table_data' in st.session_state
     if have_csv:
-        n = len(st.session_state.table_data)
+        df = st.session_state.table_data
+        n = len(df)
+        # NOTE: base64-encoded image files take priority over uploaded images
+        d = get_images_from_df(df)
+        st.session_state.person_images.update(d['person'])
+        st.session_state.gift_images.update(d['gift'])
     else:
         n = int(st.number_input('How many people?', min_value=1, value=1, format='%d'))
     rank_people = st.selectbox('Ranking criterion?', ['Reciprocal/popular', 'Popular', 'Reciprocal'])
@@ -311,7 +331,7 @@ def main() -> None:
     should_rank_people = rank_people != 'Reciprocal'
     table_data = render_ranking_form(n, should_rank_people, have_csv)
     options = SMPOptions(rank_people)
-    st.download_button('Download CSV', table_data.to_csv(index=False), file_name = 'rankings.csv', mime = 'text/csv')
+    st.download_button('Download CSV', table_data.to_csv(index=False), file_name='rankings.csv', mime='text/csv')
     if get_state('form_submitted', False):
         with st_catch_errors(ValueError):
             data = SMPData.from_form_data(table_data, options)

@@ -2,9 +2,6 @@
 
 ## Submission app
 
-- Upload photo of self and gift when submitting?
-    - Could store, e.g. base64-encoded in the spreadsheet (compress down to <1 MB)
-
 ## SMP app
 
 - Improve API for directly loading profile from Google Sheets (don't go by way of streamlit)
