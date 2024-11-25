@@ -25,7 +25,7 @@ def make_thumbnail(img: Image, width: int = THUMBNAIL_WIDTH) -> Image:
 def img_from_bytes(b: bytes) -> Image:
     return PIL.Image.open(BytesIO(b))
 
-def img_to_base64(img: Image, format='jpeg') -> str:
+def img_to_base64(img: Image, format: str ='jpeg') -> str:
     bio = BytesIO()
     img.save(bio, format=format)
     return base64.b64encode(bio.getvalue()).decode()

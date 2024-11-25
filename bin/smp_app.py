@@ -103,7 +103,7 @@ def render_title() -> None:
     col2.image(logo)
     with col1.expander('What is this?'):
         descr = 'This app will to solve the <b>gift exchange problem</b> with the following setup:<br>Each person brings one gift to a party and then ranks all of the gifts in preference order. Using a variant of the classic <a href="https://en.wikipedia.org/wiki/Gale–Shapley_algorithm" target="_blank">Gale-Shapley algorithm</a> (1962), an "optimal" matching between people and gifts will be found such that no pair of people will want to trade gifts with each other.'
-        st.caption(descr, unsafe_allow_html = True)
+        st.caption(descr, unsafe_allow_html=True)
 
 def submit_form() -> None:
     set_state('form_submitted', True)

@@ -1,6 +1,7 @@
 from datetime import datetime
 
 import pandas as pd
+from PIL import ImageOps
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 
@@ -11,7 +12,7 @@ from pysoc.sct.prefs import Ranking
 # TODO: move these to config file
 MIN_CHOICES = 5
 SELF_RANKED_LAST = True
-IMG_TYPES = ['png', 'jpg', 'heic', 'heif']
+IMG_TYPES = ['png', 'jpg']
 
 st.set_page_config(page_title='Festivus!', page_icon='🎁')
 
@@ -60,7 +61,9 @@ def validate_input(df: pd.DataFrame, name: str, brought: str, description: str, 
 
 def process_image(img: st.runtime.uploaded_file_manager.UploadedFile) -> str:
     """Processes an uploaded image and converts it to a base64 string."""
-    thumb = make_thumbnail(img_from_bytes(img.getvalue()))
+    img = img_from_bytes(img.getvalue())
+    img = ImageOps.exif_transpose(img)
+    thumb = make_thumbnail(img)
     return img_to_base64(thumb)
 
 
