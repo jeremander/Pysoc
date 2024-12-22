@@ -282,7 +282,7 @@ class SMPData(NamedTuple):
             animation = animator.animate(self.anim_actions, squash=SQUASH)
             # TODO: cache animation data (serialized)
             with tempfile.NamedTemporaryFile('wb+', suffix='.mp4') as tf:
-                animation.save(tf.name, writer = 'ffmpeg', dpi=DPI, fps=FPS)
+                animation.save(tf.name, writer='ffmpeg', dpi=DPI, fps=FPS)
                 tf.flush()
                 tf.seek(0)
                 data = tf.read()

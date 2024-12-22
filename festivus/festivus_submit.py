@@ -62,6 +62,7 @@ def validate_input(df: pd.DataFrame, name: str, brought: str, description: str, 
 def process_image(img: st.runtime.uploaded_file_manager.UploadedFile) -> str:
     """Processes an uploaded image and converts it to a base64 string."""
     img = img_from_bytes(img.getvalue())
+    # ensure original image orientation is applied
     img = ImageOps.exif_transpose(img)
     thumb = make_thumbnail(img)
     return img_to_base64(thumb)
@@ -106,7 +107,7 @@ def main() -> None:
         row = {'Person': name, 'Brought': brought, 'Description': description, 'Ranked Gifts': ranking, 'Person Image': person_img_str, 'Gift Image': gift_img_str}
         df = pd.concat([df, pd.DataFrame.from_records([row])])
         with st.spinner('Submitting data...'):
-            st.dataframe(df)
+            # st.dataframe(df)
             conn.update(data=df)
         st.write('Your choices have been submitted! 🎉')
 
