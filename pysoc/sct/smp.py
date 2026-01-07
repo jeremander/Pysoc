@@ -228,7 +228,7 @@ class GaleShapleyAnimator:
         self.node_colors = {node: '#3BB9FF' if (i < num_suitors) else '#F778A1' for (i, node) in enumerate(self.nodes)}
 
     def init_axis(self):
-        (self.fig, self.ax) = plt.subplots(figsize = self.figsize)
+        (self.fig, self.ax) = plt.subplots(figsize=self.figsize)
         plt.subplots_adjust(left=0.0, right=1.0, top=1.0, bottom=0.0)
         # self.fig.tight_layout()
         self.ax.set_xlim((-0.5, self.N - 0.5))
@@ -283,18 +283,18 @@ class GaleShapleyAnimator:
                         if (tuple(line.get_xdata()) == xdata) and (tuple(line.get_ydata()) == ydata):
                             return i
                     return None
-                if (flag == 'add'):
+                if flag == 'add':
                     lines += self.ax.plot(xdata, ydata, linewidth=2, color='black', linestyle='dashed')
-                elif (flag == 'delete'):
+                elif flag == 'delete':
                     i = get_line_index()
                     l = lines.pop(i)
                     l.remove()
                     del(l)
-                elif (flag == 'reject'):
+                elif flag == 'reject':
                     i = get_line_index()
                     lines[i].set_color('red')
                     lines[i].set_linestyle('dashed')
-                elif (flag == 'keep'):
+                elif flag == 'keep':
                     i = get_line_index()
                     lines[i].set_color('green')
                     lines[i].set_linestyle('solid')
