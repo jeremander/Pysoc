@@ -22,7 +22,17 @@ from pysoc.sct.smp import GaleShapleyAnimator, SMPOptions, SuitorRankingMode, ag
 
 version = '0.1'
 
-logger = logging.getLogger('smp_app')
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s %(name)s: %(message)s',
+)
+
+def get_logger() -> logging.Logger:
+    logger = logging.getLogger('smp_app')
+    logger.setLevel(logging.DEBUG)
+    return logger
+
+logger = get_logger()
 
 HEADER_HEIGHT = 38
 ROW_HEIGHT = 35
@@ -298,22 +308,19 @@ class SMPData(NamedTuple):
         st.button('Download Animation', on_click=clicked_download_animation)
         if get_state('show_animation_link', False):
             filename = 'animation.mp4'
-            logger.debug('Rendering...')
+            logger.debug('Rendering animation...')
             animator = gale_shapley_animator(self.suitors, self.suitees)
             pysoc.sct.smp._ST_PROGRESSBAR = st.progress(0, text='Rendering...')
             animation = animator.animate(self.anim_actions, squash=SQUASH)
-            logger.debug('Done rendering')
+            logger.debug('Done rendering animation')
             # TODO: cache animation data (serialized)
-            with tempfile.NamedTemporaryFile('wb+') as tf:
-                logger.debug(f'Opened {tf.name}')
+            with tempfile.NamedTemporaryFile('wb+', suffix='.mp4') as tf:
                 animation.save(tf.name, writer='ffmpeg', dpi=DPI, fps=FPS)
                 tf.flush()
                 tf.seek(0)
-                logger.debug('Saved animation')
                 data = tf.read()
                 b64 = base64.b64encode(data).decode()
                 link = f'<a href="data:application/octet-stream;base64,{b64}" download="{filename}">{filename}</a>'
-            logger.debug(f'Created link: {link}')
             st.markdown(link, unsafe_allow_html=True)
 
     def render_animation(self) -> None:
@@ -322,6 +329,7 @@ class SMPData(NamedTuple):
 
 
 def main() -> None:
+    logger.info('Started SMP app')
     render_title()
     with st.expander('Upload files (optional)'):
         gsheet_link = st.text_input('Link to Google Sheet')
