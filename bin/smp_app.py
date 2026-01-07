@@ -23,8 +23,7 @@ from pysoc.sct.smp import GaleShapleyAnimator, SMPOptions, SuitorRankingMode, ag
 version = '0.1'
 
 logging.basicConfig(
-    # level=logging.INFO,
-    level=logging.DEBUG,
+    level=logging.INFO,
     format='%(asctime)s %(name)s: %(message)s',
 )
 
@@ -309,13 +308,14 @@ class SMPData(NamedTuple):
         st.button('Download Animation', on_click=clicked_download_animation)
         if get_state('show_animation_link', False):
             filename = 'animation.mp4'
+            suffix = '.' + filename.split('.')[1]
             logger.debug('Rendering animation...')
             animator = gale_shapley_animator(self.suitors, self.suitees)
             pysoc.sct.smp._ST_PROGRESSBAR = st.progress(0, text='Rendering...')
             animation = animator.animate(self.anim_actions, squash=SQUASH)
             logger.debug('Done rendering animation')
             # TODO: cache animation data (serialized)
-            with tempfile.NamedTemporaryFile('wb+', suffix='.mp4') as tf:
+            with tempfile.NamedTemporaryFile('wb+', suffix=suffix) as tf:
                 animation.save(tf.name, writer='ffmpeg', dpi=DPI, fps=FPS)
                 tf.flush()
                 tf.seek(0)
