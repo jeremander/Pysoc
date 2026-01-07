@@ -49,6 +49,9 @@ RANKING_MODE_FROM_NAME: dict[str, SuitorRankingMode] = {
 
 st.set_page_config(page_title='Gift Matching', page_icon='🎁', layout='wide')
 
+def dbg(s):
+    import sys
+    print(s, file=sys.stderr)
 
 ####################
 # HELPER FUNCTIONS #
@@ -295,17 +298,22 @@ class SMPData(NamedTuple):
         st.button('Download Animation', on_click=clicked_download_animation)
         if get_state('show_animation_link', False):
             filename = 'animation.mp4'
+            dbg('Rendering...')
             animator = gale_shapley_animator(self.suitors, self.suitees)
             pysoc.sct.smp._ST_PROGRESSBAR = st.progress(0, text='Rendering...')
             animation = animator.animate(self.anim_actions, squash=SQUASH)
+            dbg('Done rendering')
             # TODO: cache animation data (serialized)
             with tempfile.NamedTemporaryFile('wb+', suffix='.mp4') as tf:
+                dbg(f'Opened {tf}')
                 animation.save(tf.name, writer='ffmpeg', dpi=DPI, fps=FPS)
                 tf.flush()
                 tf.seek(0)
+                dbg('Saved animation')
                 data = tf.read()
                 b64 = base64.b64encode(data).decode()
                 link = f'<a href="data:application/octet-stream;base64,{b64}" download="{filename}">{filename}</a>'
+            dbg('Created link')
             st.markdown(link, unsafe_allow_html=True)
 
     def render_animation(self) -> None:
