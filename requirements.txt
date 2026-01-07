@@ -1,0 +1,11 @@
+.  # include pysoc itself in requirements list for streamlit app
+matplotlib
+networkx
+numpy
+pandas
+Pillow
+scipy
+st-gsheets-connection
+streamlit
+streamlit-aggrid
+tqdm
