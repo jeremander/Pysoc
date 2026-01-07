@@ -300,6 +300,18 @@ class SMPData(NamedTuple):
             anim_height = 100 + 100 * animator.figsize[1]
             st.components.v1.html(animation.to_jshtml(), height=anim_height)
 
+    def get_animation_video_base64(self) -> str:
+        logger.debug('Rendering animation...')
+        animator = gale_shapley_animator(self.suitors, self.suitees)
+        pysoc.sct.smp._ST_PROGRESSBAR = st.progress(0, text='Rendering...')
+        animation = animator.animate(self.anim_actions, squash=SQUASH)
+        logger.debug('Done rendering animation')
+        with tempfile.TemporaryDirectory() as tmpdir:
+            anim_path = Path(tmpdir) / 'animation.mp4'
+            animation.save(anim_path, writer='ffmpeg', dpi=DPI, fps=FPS)
+            data = anim_path.read_bytes()
+        return base64.b64encode(data).decode()
+
     def render_download_animation(self) -> None:
         def clicked_download_animation() -> None:
             set_state('form_submitted', True)
@@ -307,21 +319,9 @@ class SMPData(NamedTuple):
             set_state('show_animation_link', True)
         st.button('Download Animation', on_click=clicked_download_animation)
         if get_state('show_animation_link', False):
+            b64 = self.get_animation_video_base64()
             filename = 'animation.mp4'
-            suffix = '.' + filename.split('.')[1]
-            logger.debug('Rendering animation...')
-            animator = gale_shapley_animator(self.suitors, self.suitees)
-            pysoc.sct.smp._ST_PROGRESSBAR = st.progress(0, text='Rendering...')
-            animation = animator.animate(self.anim_actions, squash=SQUASH)
-            logger.debug('Done rendering animation')
-            # TODO: cache animation data (serialized)
-            with tempfile.NamedTemporaryFile('wb+', suffix=suffix) as tf:
-                animation.save(tf.name, writer='ffmpeg', dpi=DPI, fps=FPS)
-                tf.flush()
-                tf.seek(0)
-                data = tf.read()
-                b64 = base64.b64encode(data).decode()
-                link = f'<a href="data:application/octet-stream;base64,{b64}" download="{filename}">{filename}</a>'
+            link = f'<a href="data:application/octet-stream;base64,{b64}" download="{filename}">{filename}</a>'
             st.markdown(link, unsafe_allow_html=True)
 
     def render_animation(self) -> None:
