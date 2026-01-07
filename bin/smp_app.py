@@ -119,7 +119,7 @@ def submit_form() -> None:
 def render_ranking_form(n: int, should_rank_people: bool, have_csv: bool) -> pd.DataFrame:
     st.write('Enter user preference rankings.')
     with st.form('rankings form'):
-        ranking_help = 'Provide each person\'s full ranking of gifts from favorite to least favorite, separated by commas (for gifts whose rankings are tied, you may separate by semicolons).'
+        ranking_help = 'Provide each person\'s full ranking of gifts from favorite to least favorite, separated by commas (for gifts whose rankings are tied, you may separate by slashes).'
         if should_rank_people:
             ranking_help += '<br>Additionally, please provide the gift brought by each person.'
         st.caption(ranking_help, unsafe_allow_html=True)

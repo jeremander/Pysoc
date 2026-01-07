@@ -1,11 +1,13 @@
 from collections import defaultdict
 import itertools
 from math import factorial
-import numpy as np
-from tqdm import tqdm
 from typing import List
 
+import numpy as np
+from tqdm import tqdm
+
 from pysoc.sct.prefs import CardinalRanking, PrefRelation, Profile, Ranking, StrictRanking
+
 
 # Social Welfare Functions
 # (AKA preference aggregation)
@@ -107,13 +109,13 @@ SCF_COLLECTION = SCFCollection([])
 
 def scf(f):
     """Decorates a social choice function with simple handling of trivial cases."""
-    class WrappedSCF():
+    class WrappedSCF:
         def __call__(self, profile, *args, **kwargs):
-            if (profile.n == 0):
+            if profile.n == 0:
                 raise ValueError("Must have nonzero number of voters.")
-            if (profile.m == 0):
+            if profile.m == 0:
                 return []
-            if (profile.m == 1):
+            if profile.m == 1:
                 return [profile.universe_list[0]]
             return f(profile, *args, **kwargs)
         def __repr__(self):
@@ -124,11 +126,11 @@ def scf(f):
 
 @scf
 def weak_condorcet_winners(profile):
-    return profile.condorcet_winners(strong = False)
+    return profile.condorcet_winners(strong=False)
 
 @scf
 def strong_condorcet_winners(profile):
-    return profile.condorcet_winners(strong = True)
+    return profile.condorcet_winners(strong=True)
 
 @scf
 def majority_vote(profile, split = True):
@@ -136,7 +138,7 @@ def majority_vote(profile, split = True):
     ballot = profile.ballot(split)
     winners = []
     for item in ballot:
-        if (float(ballot[item]) >= profile.n / 2.0):
+        if float(ballot[item]) >= profile.n / 2.0:
             winners.append(item)
     return winners
 

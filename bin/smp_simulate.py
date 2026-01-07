@@ -33,7 +33,8 @@ def load_data(path):
 
 def get_profile_and_img_paths(df):
     # TODO: base path for default image paths
-    """Given a DataFrame indexed by names, with numeric columns for the rankings (semicolon-delimiting ties), and an optional 'Image' column containing paths to images, returns a Profile containing the weak preferences, and also a dictionary from names to image paths. If no numeric columns are provided, returns None instead of the Profiles."""
+    """Given a DataFrame indexed by names, with numeric columns for the rankings (slash-delimiting ties), and an optional 'Image' column containing paths to images, returns a Profile containing the weak preferences, and also a dictionary from names to image paths.
+    If no numeric columns are provided, returns None instead of the Profiles."""
     profile = Profile.from_dataframe(df, 'Ranked Gifts')
     names = list(df.index)
     # handle image paths

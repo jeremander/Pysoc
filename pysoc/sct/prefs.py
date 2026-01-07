@@ -1,11 +1,14 @@
 from collections import defaultdict
+from collections.abc import Sequence
 from itertools import groupby
 import operator
 from operator import itemgetter
 import random
+from typing import Generic, Optional, TypeVar
 
 import matplotlib.pyplot as plt
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 from scipy.special import binom
 from scipy.stats import beta
@@ -13,19 +16,24 @@ from scipy.stats import beta
 from pysoc.utils import flatten
 
 
-class PrefRelation(object):
+T = TypeVar('T')
+
+BoolMat = npt.NDArray[np.bool_]
+
+
+class PrefRelation(Generic[T]):
     """Object representation a general preference relation (reflexive, but no requirement of completeness, transitivity, or antisymmetry)."""
 
-    def __init__(self, pref_matrix, items = None):
+    def __init__(self, pref_matrix: BoolMat, items: Optional[Sequence[T]] = None) -> None:
         """Constructs PrefRelation object from a square Boolean matrix. A True in entry (i, j) indicates i is weakly preferred to j. If False is in entry (j, i), then i is strictly preferred to j."""
         shape = pref_matrix.shape
-        if (shape in [(0,), (1, 0)]):
+        if shape in [(0,), (1, 0)]:
             self.m = 0
         else:
             if ((len(shape) != 2) or (shape[0] != shape[1]) or (pref_matrix.dtype != bool)):
-                raise ValueError("Input matrix must be square and Boolean.")
+                raise ValueError('Input matrix must be square and Boolean.')
             self.m = shape[0]
-        if (items is None):
+        if items is None:
             self.items = range(self.m)
         else:
             self.items = items[:self.m]  # names of the items
@@ -34,7 +42,7 @@ class PrefRelation(object):
             self.pref_matrix = pref_matrix
         else:
             self.pref_matrix = pref_matrix | np.diag([True for i in range(self.m)]) # Diagonal must be True
-        self.item_indices = dict([(self.items[i], i) for i in range(self.m)])
+        self.item_indices = {self.items[i]: i for i in range(self.m)}
 
     def prefers(self, x, y, strong = False):
         """Returns True iff x is preferred to y."""
@@ -199,7 +207,7 @@ class PrefRelation(object):
 
     def with_universe(self, universe):
         """Given a new universe of candidates, creates a new PrefRelation with this universe that is consistent with the original one."""
-        if (len(universe) == 0):
+        if len(universe) == 0:
             return PrefRelation(np.array([]), [])
         elif universe.issubset(self.universe):
             subset_indices = [self.item_indices[item] for item in universe]
@@ -208,7 +216,7 @@ class PrefRelation(object):
             return PrefRelation(mat, items)
 
     def __repr__(self):
-        return repr(pd.DataFrame(self.pref_matrix, index = self.items, columns = self.items))
+        return repr(pd.DataFrame(self.pref_matrix, index=self.items, columns=self.items))
 
     def __len__(self):
         return self.m
@@ -318,7 +326,7 @@ class Ranking(PrefRelation):
         return StrictRanking([x for xs in self.items for x in np.random.permutation(xs)])
 
     def __repr__(self):
-        return ', '.join('; '.join(str(item) for item in lst) for lst in self.items)
+        return ', '.join('/'.join(str(item) for item in lst) for lst in self.items)
 
     def __getitem__(self, index):
         return self.items[index]
@@ -342,9 +350,9 @@ class Ranking(PrefRelation):
     @classmethod
     def from_string(cls, s: str) -> 'Ranking':
         """Parses a Ranking from a comma-separated string.
-        Commas delimit strictly ranked sections; semicolons delimit equally-ranked items."""
+        Commas delimit strictly ranked tiers; slashes delimit equally-ranked items."""
         if s:
-            return Ranking([[item.strip() for item in tok.split(';')] for tok in s.split(',')])
+            return Ranking([[item.strip() for item in tok.split('/')] for tok in s.split(',')])
         return Ranking([])
 
 
@@ -354,7 +362,7 @@ class StrictRanking(Ranking):
     def __init__(self, items):
         """Constructor with list of ranked items."""
         self.universe = items
-        if (len(set(self.universe)) != len(self.universe)):
+        if len(set(self.universe)) != len(self.universe):
             raise ValueError("Members of ranked item list must be unique.")
         self.universe = set(self.universe)
         self.m = len(self.universe)  # number of alternatives
@@ -535,7 +543,7 @@ class CardinalRanking(Ranking):
         return cls(score_dict)
 
 
-class Profile(object):
+class Profile:
     """Object representing a vector of ranked preferences."""
 
     def __init__(self, prefs, names = None):
@@ -633,7 +641,7 @@ class Profile(object):
                 else:
                     s += "{} : [{}]\n".format(name, ', '.join('[{}]'.format(', '.join(str(x) for x in group)) for group in rel.items))
             else:
-                s += "{} : <PrefRanking on \{{}\}\n".format(name, repr(rel.items)[1:-1])
+                s += '{} : <PrefRanking on {{{}}}\n'.format(name, repr(rel.items)[1:-1])
         return s
 
     def __iter__(self):
@@ -646,7 +654,7 @@ class Profile(object):
         return len(self.prefs)
 
     def to_pandas(self):
-        return pd.Series([str(ranking) for ranking in self.prefs], index = self.names, name = 'Ranking')
+        return pd.Series([str(ranking) for ranking in self.prefs], index=self.names, name='Ranking')
 
     def to_csv(self, filename, two_column: bool = False):
         num_items = len(self.universe)
@@ -655,15 +663,15 @@ class Profile(object):
                 f.write(',Ranked\n')
                 for (name, ranking) in zip(self.names, self.prefs):
                     f.write(f'{name},')
-                    ranking_str = ','.join(';'.join(group) for group in ranking)
+                    ranking_str = ','.join('/'.join(group) for group in ranking)
                     f.write(f'"{ranking_str}"')
                     f.write('\n')
             else:
                 f.write(','.join([''] + [str(i) for i in range(num_items)]) + '\n')
                 for (name, ranking) in zip(self.names, self.prefs):
                     f.write(str(name))
-                    for (i, group) in enumerate(ranking):
-                        f.write(',' + ';'.join(group))
+                    for (i, group) in enumerate(ranking):  # noqa: B007
+                        f.write(',' + '/'.join(group))
                     for _ in range(i + 1, num_items):
                         f.write(',')
                 f.write('\n')
