@@ -7,10 +7,9 @@ import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 import pandas as pd
-from PIL import Image
 from tqdm import tqdm
 
-from pysoc.img_util import THUMBNAIL_WIDTH, make_thumbnail
+from pysoc.img_util import THUMBNAIL_WIDTH, load_image, make_thumbnail
 from pysoc.sct.prefs import CardinalRanking, Profile, Ranking, StrictRanking
 from pysoc.sct.sct import borda_count_ranking, kemeny_young
 
@@ -220,12 +219,12 @@ class GaleShapleyAnimator:
         num_suitors, num_suitees = len(suitors), len(suitees)
         self.N = max(num_suitors, num_suitees)
         self.height = max(2, self.N // 2)
-        self.pos = {node : (i, self.height) if (i < num_suitors) else (i - num_suitors, 0) for (i, node) in enumerate(self.nodes)}
-        self.node_colors = {node : '#3BB9FF' if (i < num_suitors) else '#F778A1' for (i, node) in enumerate(self.nodes)}
+        self.pos = {node: (i, self.height) if (i < num_suitors) else (i - num_suitors, 0) for (i, node) in enumerate(self.nodes)}
+        self.node_colors = {node: '#3BB9FF' if (i < num_suitors) else '#F778A1' for (i, node) in enumerate(self.nodes)}
 
     def init_axis(self):
         (self.fig, self.ax) = plt.subplots(figsize = self.figsize)
-        plt.subplots_adjust(left = 0.0, right = 1.0, top = 1.0, bottom = 0.0)
+        plt.subplots_adjust(left=0.0, right=1.0, top=1.0, bottom=0.0)
         # self.fig.tight_layout()
         self.ax.set_xlim((-0.5, self.N - 0.5))
         self.ax.set_ylim((-0.5, self.height + 0.5))
@@ -241,14 +240,14 @@ class GaleShapleyAnimator:
         for (node, img_file) in gen_nodes():
             p = self.pos[node]
             if img_file:  # use image
-                img = Image.open(img_file)
+                img = load_image(img_file)
                 # img = make_border(img, 0.8)
                 img = make_thumbnail(img, width=self.thumbnail_width)
                 self.ax.imshow(img, origin='upper', extent=[p[0] - 0.4, p[0] + 0.4, p[1] - 0.4, p[1] + 0.4])
             else:  # use the name
                 circ = plt.Circle(p, 0.35, color=self.node_colors[node])
                 self.ax.add_artist(circ)
-                self.ax.text(*p, node, ha='center', va='center', fontweight='bold', fontsize = 12)
+                self.ax.text(*p, node, ha='center', va='center', fontweight='bold', fontsize=12)
 
     def animate(self, anim_df, squash: float = 0.8):
         """Animates the Gale-Shapley algorithm. Takes list of suitors, suitees, and animation actions returned by the gale_shapley function."""
@@ -280,7 +279,7 @@ class GaleShapleyAnimator:
                             return i
                     return None
                 if (flag == 'add'):
-                    lines += self.ax.plot(xdata, ydata, linewidth = 2, color = 'black', linestyle = 'dashed')
+                    lines += self.ax.plot(xdata, ydata, linewidth=2, color='black', linestyle='dashed')
                 elif (flag == 'delete'):
                     i = get_line_index()
                     l = lines.pop(i)

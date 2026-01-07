@@ -63,6 +63,8 @@ lint.exclude = [
     "tmp*",
 ]
 
+line-length = 320
+
 [lint.per-file-ignores]
 "__init__.py" = ["D104", "F401"]
 

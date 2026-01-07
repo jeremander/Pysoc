@@ -8,11 +8,11 @@ from typing import Any, BinaryIO, NamedTuple
 
 import networkx as nx
 import pandas as pd
-import PIL.Image
 from st_aggrid import AgGrid
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 
+from pysoc.img_util import load_image
 from pysoc.sct.prefs import Profile, Ranking
 from pysoc.sct.sct import SCF_COLLECTION
 import pysoc.sct.smp
@@ -95,7 +95,7 @@ def render_title() -> None:
     col1, _, col2 = st.columns([6, 1, 8])
     col1.title('Gift Matching Algorithm')
     logo_path = Path(__file__).parents[1] / 'app_logo' / 'logo.jpg'
-    logo = PIL.Image.open(logo_path)
+    logo = load_image(logo_path)
     size = logo.size
     height = 200
     width = int((size[1] / size[0]) * height)
