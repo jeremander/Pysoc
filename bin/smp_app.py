@@ -163,6 +163,19 @@ def gale_shapley_animator(suitors: list[str], suitees: list[str]) -> GaleShapley
     height = max(2, 0.55 * width)
     return GaleShapleyAnimator(suitors, suitees, suitor_images=suitor_images, suitee_images=suitee_images, figsize=(width, height), thumbnail_width=100)
 
+def get_matches_df(graph: nx.Graph, suitor_profile: Profile) -> pd.DataFrame:
+    """Gets a DataFrame showing the matches between people and gifts."""
+    suitors = suitor_profile.names
+    assert suitors is not None
+    rows = []
+    for (person, gift) in graph.edges:
+        ranking = suitor_profile[person]
+        rank = ranking.rank(gift) + 1
+        rank_str = f'{rank} of {ranking.levels}'
+        rows.append([person, gift, rank_str])
+    sort_key = lambda s: [suitors.index(i) for i in s]
+    return pd.DataFrame(rows, columns=[PERSON_COL, GIFT_COL, 'rank']).sort_values(by=PERSON_COL, key=sort_key)
+
 
 class SMPData(NamedTuple):
     options: SMPOptions
@@ -208,7 +221,7 @@ class SMPData(NamedTuple):
                 rankings[i] = Ranking(ranking.items + [tier])
         suitees = sorted(brought)
         # suitees = sorted(ranking.universe)
-        suitor_profile = Profile(rankings, names = suitors)
+        suitor_profile = Profile(rankings, names=suitors)
         if options.rank_popularity():  # validate list of brought items
             for suitee in suitees:
                 if (suitee not in brought):
@@ -220,8 +233,7 @@ class SMPData(NamedTuple):
         suitor_winners = get_winners(suitee_profile)
         suitee_winners = get_winners(suitor_profile)
         (graph, anim_actions) = gale_shapley_weak(suitor_profile, suitee_profile, random_tiebreak=True)
-        sort_key = lambda s: [suitors.index(i) for i in s]
-        matches = pd.DataFrame(graph.edges, columns=[PERSON_COL, GIFT_COL]).sort_values(by=PERSON_COL, key=sort_key)
+        matches = get_matches_df(graph, suitor_profile)
         return SMPData(options, suitors, suitees, suitor_profile, suitee_profile, suitor_winners, suitee_winners, graph, anim_actions, matches)
 
     @property

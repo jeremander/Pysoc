@@ -367,7 +367,7 @@ class StrictRanking(Ranking):
         self.universe = set(self.universe)
         self.m = len(self.universe)  # number of alternatives
         self.items = items
-        self.item_ranks = {item : i for (i, item) in enumerate(self.items)}
+        self.item_ranks = {item: i for (i, item) in enumerate(self.items)}
 
     def is_strict(self):
         return True
@@ -549,19 +549,19 @@ class Profile:
     def __init__(self, prefs, names = None):
         """Constructor takes list of PrefRelation objects, and (optionally) an identically-sized list of names of the population members. Default will be range(n), where n = len(prefs)."""
         self.n = len(prefs)
-        if (self.n > 0):
+        if self.n > 0:
             self.universe = {elt for ranking in prefs for elt in ranking.universe}
         else:
             self.universe = set()
         self.prefs = [pref.with_universe(self.universe) for pref in prefs]
         self.universe_list = list(self.universe)  # handy to have list representation around too
         self.m = len(self.universe)
-        if (names is None):
+        if names is None:
             self.names = range(self.n)
         else:
             assert (len(names) == self.n), "Mismatch between number of PrefRelations and number of names."
             self.names = names[:self.n]
-        self.indices_by_name = {name : i for (i, name) in enumerate(self.names)}
+        self.indices_by_name = {name: i for (i, name) in enumerate(self.names)}
 
     def with_universe(self, universe):
         """Given a subset of the candidates, reduces each member's PrefRelation to this subset."""

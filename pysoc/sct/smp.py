@@ -75,23 +75,23 @@ def gale_shapley_weak(suitor_prefs: Profile, suitee_prefs: Profile, verbose: boo
     suitee_prefs.names = [str(name) for name in suitee_prefs.names]
     assert (suitor_prefs.universe.issubset(suitee_prefs.names))
     assert (suitee_prefs.universe.issubset(suitor_prefs.names))
-    assert (len(suitor_prefs.universe.intersection(suitee_prefs.universe)) == 0), "Suitors and suitees must be unique."
+    assert (len(suitor_prefs.universe.intersection(suitee_prefs.universe)) == 0), 'Suitors and suitees must be unique.'
     # convert to strict prefs (breaking ties randomly) to have strict order of proposals
-    suitor_strict_prefs = Profile([pref.break_ties_randomly() for pref in suitor_prefs.prefs], names = suitor_prefs.names)
+    suitor_strict_prefs = Profile([pref.break_ties_randomly() for pref in suitor_prefs.prefs], names=suitor_prefs.names)
     # get suitors and suitees
     suitors, suitees = suitor_prefs.names, suitee_prefs.names
     # initialize the graph
     graph = nx.Graph()
     graph.add_nodes_from(suitors + suitees)
     actions = []  # list of (action, suitor, suitee) tuples
-    suitor_ranks = {name : -1 for name in suitors + suitees}   # maps from suitors to match ranks (0-up), -1 for unmatched
-    suitor_matching = {name : None for name in suitors}
-    suitee_matching = {name : None for name in suitees}
+    suitor_ranks = {name: -1 for name in suitors + suitees}   # maps from suitors to match ranks (0-up), -1 for unmatched
+    suitor_matching = {name: None for name in suitors}
+    suitee_matching = {name: None for name in suitees}
     def unmatched_pair_exists():
         return any(suitee is None for suitee in suitor_matching.values()) and any(suitor is None for suitor in suitee_matching.values())
     while unmatched_pair_exists():  # terminate if there are no more unmatched pairs
         for suitor in suitors:  # single suitors propose
-            if (graph.degree(suitor) == 0):
+            if graph.degree(suitor) == 0:
                 suitor_ranks[suitor] += 1
                 suitee = suitor_strict_prefs[suitor][suitor_ranks[suitor]]
                 if verbose:
@@ -103,17 +103,17 @@ def gale_shapley_weak(suitor_prefs: Profile, suitee_prefs: Profile, verbose: boo
             if (len(neighbors) > 1) or ((len(neighbors) > 0) and (suitee_matching[suitee] is None)):
                 for suitor_group in suitee_prefs[suitee]:
                     candidates = [suitor for suitor in suitor_group if (suitor in neighbors)]
-                    if (len(candidates) == 1):
+                    if len(candidates) == 1:
                         suitor = candidates[0]
                         break
-                    if (len(candidates) > 1):
+                    if len(candidates) > 1:
                         if random_tiebreak:  # break the tie randomly
                             suitor = np.random.choice(candidates)
                         else:  # break the tie interactively
                             while True:
                                 candidate_str = ', '.join(map(str, candidates))
                                 suitor = input(f'{suitee} received proposals from: {candidate_str}.\nBreak the tie: ')
-                                if (suitor in candidates):
+                                if suitor in candidates:
                                     break
                                 print(f"Invalid value '{suitor}'")
                         break
@@ -124,22 +124,25 @@ def gale_shapley_weak(suitor_prefs: Profile, suitee_prefs: Profile, verbose: boo
                         graph.remove_edge(neighbor, suitee)
                         actions.append(('reject', neighbor, suitee))
                         suitor_matching[neighbor] = None
-                if not (suitor_matching[suitor] == suitee):
+                if suitor_matching[suitor] != suitee:
                     actions.append(('keep', suitor, suitee))
                     suitor_matching[suitor] = suitee
                     suitee_matching[suitee] = suitor
                 for neighbor in neighbors:
-                    if (neighbor != suitor):
+                    if neighbor != suitor:
                         actions.append(('delete', neighbor, suitee))
                 if verbose:
                     print(f"{suitee} is still with {suitor}")
-    action_df = pd.DataFrame(actions, columns = ['action', 'suitor', 'suitee'])
+    action_df = pd.DataFrame(actions, columns=['action', 'suitor', 'suitee'])
     return (graph, action_df)
 
 def num_weak_compositions(n: int, k: int) -> int:
+    """Gets the number of weak k-compositions of n (ways to express n as a sum of k nonnegative terms, where order matters)."""
     return 1 if (n == k == 0) else math.comb(n + k - 1, n)
 
 def num_worse_signatures(n: int, signature: tuple[int, ...]) -> int:
+    """Given a signature, gets the number of worse signatures.
+    Signatures are ranked in lexicographic order (meaning it is always better for one additional person to get their first choice, even if all other ranks get worse)."""
     if n == 0:
         return 0
     k = len(signature)
@@ -160,18 +163,19 @@ class RankSignature(NamedTuple):
         return 0.0 if (num_worse_sigs == 0) else (100.0 * (num_worse_sigs / (num_sigs - 1)))
 
 
+def rank_signature_from_profile(profile: Profile, graph: nx.Graph) -> RankSignature:
+    """Gets the rank signature for a suitor or suitee Profile, given a matching."""
+    counts: Counter[int] = Counter()
+    n = len(profile)
+    for (ranking, name) in zip(profile, profile.names):
+        neighbor = next(iter(graph.neighbors(name)))
+        counts[ranking.rank(neighbor)] += 1
+    return RankSignature(n, tuple(counts[i] for i in range(n)))
+
 def get_rank_signatures(suitor_profile: Profile, suitee_profile: Profile, graph: nx.Graph) -> tuple[RankSignature, RankSignature]:
     """Gets the rank signature for suitors and suitees, given a matching."""
-    suitor_counts, suitee_counts = Counter(), Counter()
-    num_suitors, num_suitees = len(suitor_profile), len(suitee_profile)
-    for (ranking, suitor) in zip(suitor_profile, suitor_profile.names):
-        suitee = next(iter(graph.neighbors(suitor)))
-        suitor_counts[ranking.rank(suitee)] += 1
-    suitor_sig = RankSignature(num_suitors, tuple(suitor_counts[i] for i in range(num_suitors)))
-    for (ranking, suitee) in zip(suitee_profile, suitee_profile.names):
-        suitor = next(iter(graph.neighbors(suitee)))
-        suitee_counts[ranking.rank(suitor)] += 1
-    suitee_sig = RankSignature(num_suitees, tuple(suitee_counts[i] for i in range(num_suitees)))
+    suitor_sig = rank_signature_from_profile(suitor_profile, graph)
+    suitee_sig = rank_signature_from_profile(suitee_profile, graph)
     return (suitor_sig, suitee_sig)
 
 def make_reciprocal_suitee_profile(suitor_profile: Profile) -> Profile:
