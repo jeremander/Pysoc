@@ -16,7 +16,7 @@ from pysoc.img_util import load_image
 from pysoc.sct.prefs import Profile, Ranking
 from pysoc.sct.sct import SCF_COLLECTION
 import pysoc.sct.smp
-from pysoc.sct.smp import GaleShapleyAnimator, SMPOptions, aggregate_ranking, gale_shapley_weak, get_rank_signatures
+from pysoc.sct.smp import GaleShapleyAnimator, SMPOptions, SuitorRankingMode, aggregate_ranking, gale_shapley_weak, get_rank_signatures
 
 
 version = '0.1'
@@ -39,6 +39,12 @@ RANKING_DESCRIPTIONS = {
     'Reciprocal/popular': 'For each gift, rank people by strength of preference for that gift, then by gift popularity to break ties.',
     'Popular': 'Rank people by gift popularity.',
     'Reciprocal': 'For each gift, rank people by strength of preference for that gift.'
+}
+
+RANKING_MODE_FROM_NAME: dict[str, SuitorRankingMode] = {
+    'Reciprocal': 'reciprocal',
+    'Popular': 'popular',
+    'Reciprocal/popular': 'reciprocal-popular',
 }
 
 st.set_page_config(page_title='Gift Matching', page_icon='🎁', layout='wide')
@@ -329,7 +335,7 @@ def main() -> None:
     st.caption(RANKING_DESCRIPTIONS[rank_people])
     should_rank_people = rank_people != 'Reciprocal'
     table_data = render_ranking_form(n, should_rank_people, have_csv)
-    options = SMPOptions(rank_people)
+    options = SMPOptions(RANKING_MODE_FROM_NAME[rank_people])
     st.download_button('Download CSV', table_data.to_csv(index=False), file_name='rankings.csv', mime='text/csv')
     if get_state('form_submitted', False):
         with st_catch_errors(ValueError):

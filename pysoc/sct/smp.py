@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import math
 from typing import Counter, Literal, NamedTuple, get_args
 
@@ -306,12 +307,13 @@ SuitorRankingMode = Literal[
 ]
 
 
-class SMPOptions(NamedTuple):
+@dataclass
+class SMPOptions:
     rank_suitors: SuitorRankingMode
     agg: str = 'borda'
 
     def __post_init__(self) -> None:
-        assert self.rank_suitors in get_args(SuitorRankingMode), 'invalid suitor ranking mode'
+        assert self.rank_suitors in get_args(SuitorRankingMode), f'invalid suitor ranking mode {self.rank_suitors!r}'
 
     def rank_popularity(self) -> bool:
         return (self.rank_suitors != 'reciprocal')
