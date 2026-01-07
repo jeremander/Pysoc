@@ -306,7 +306,7 @@ class SMPData(NamedTuple):
                 data = tf.read()
                 b64 = base64.b64encode(data).decode()
                 link = f'<a href="data:application/octet-stream;base64,{b64}" download="{filename}">{filename}</a>'
-            st.markdown(link, unsafe_allow_html = True)
+            st.markdown(link, unsafe_allow_html=True)
 
     def render_animation(self) -> None:
         self.render_show_animation()
