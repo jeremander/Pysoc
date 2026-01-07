@@ -23,7 +23,8 @@ from pysoc.sct.smp import GaleShapleyAnimator, SMPOptions, SuitorRankingMode, ag
 version = '0.1'
 
 logging.basicConfig(
-    level=logging.INFO,
+    # level=logging.INFO,
+    level=logging.DEBUG,
     format='%(asctime)s %(name)s: %(message)s',
 )
 
@@ -329,7 +330,6 @@ class SMPData(NamedTuple):
 
 
 def main() -> None:
-    logger.info('Started SMP app')
     render_title()
     with st.expander('Upload files (optional)'):
         gsheet_link = st.text_input('Link to Google Sheet')
