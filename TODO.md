@@ -1,5 +1,11 @@
 # TODO
 
+## 2025 Fixups
+
+- Prevent images from being rotated!
+- Make sure .mp4 link is generated and works
+- Audit 2025: e.g. Zach loses to Julie despite having higher-ranked gift.
+
 ## Submission app
 
 ## SMP app

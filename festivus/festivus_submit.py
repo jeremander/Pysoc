@@ -1,4 +1,5 @@
 from datetime import datetime
+import re
 
 import pandas as pd
 from PIL import ImageOps
@@ -23,6 +24,23 @@ def normalize_name(name: str) -> str:
     """Normalizes a name."""
     return name.strip()
 
+def parse_ranking(ranking: str) -> Ranking:
+    """Parses a ranking from a string.
+    The items must be single letters delimited by spaces and/or commas.
+    Slashes indicate a tie."""
+    items = []
+    # delimiter can be either a comma or whitespace
+    toks = re.split(r'\s*,\s*|\s+', ranking.strip())
+    for tok in toks:
+        tier = tok.split('/')
+        for item in tier:
+            if not item:
+                raise ValueError('Error in ranking (check the formatting)')
+            if (not item.isalpha()) or (len(item) > 1):
+                raise ValueError(f'Error in ranking: {item!r} is not a letter.')
+        items.append(tier)
+    return Ranking(items)
+
 def validate_input(df: pd.DataFrame, name: str, brought: str, description: str, ranking: str) -> str:
     """Validates user input fields.
     Returns the canonical ranking string."""
@@ -42,15 +60,7 @@ def validate_input(df: pd.DataFrame, name: str, brought: str, description: str, 
         raise ValueError(f'Choices already submitted for {name!r}. Please reset data in Google spreadsheet.')
     if (df['Brought'] == brought).any():
         raise ValueError(f'Gift {brought!r} was brought by someone else.')
-    items = []
-    toks = ranking.strip().split()
-    for tok in toks:
-        tier = tok.split('/')
-        for item in tier:
-            if (not item.isalpha()) or (len(item) > 1):
-                raise ValueError(f'Error in ranking: {item!r} is not a letter.')
-        items.append(tier)
-    ranking_obj = Ranking(items)
+    ranking_obj = parse_ranking(ranking)
     if len(ranking_obj) == 0:
         raise ValueError('Please provide your ranking.')
     if len(ranking_obj.universe) < MIN_CHOICES:
